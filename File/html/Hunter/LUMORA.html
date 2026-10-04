@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>盘链</title>
+
+<!-- 提前对默认几个数据源域名做 DNS/TLS 预连接，减少首批请求的握手延迟；
+     若用户在设置里改了源，boot() 里还会针对实际配置的域名再补一次。 -->
+<link rel="preconnect" href="https://pinglian.lol" crossorigin>
+<link rel="dns-prefetch" href="https://pinglian.lol">
+<link rel="preconnect" href="https://api.tmdb.org" crossorigin>
+<link rel="dns-prefetch" href="https://api.tmdb.org">
+<link rel="preconnect" href="https://images.tmdb.org" crossorigin>
+<link rel="dns-prefetch" href="https://images.tmdb.org">
+<link rel="preconnect" href="https://image.tmdb.org" crossorigin>
+<link rel="dns-prefetch" href="https://image.tmdb.org">
+<link rel="preconnect" href="https://so.252035.xyz" crossorigin>
+<link rel="dns-prefetch" href="https://so.252035.xyz">
+<link rel="preconnect" href="https://4kzn.cc" crossorigin>
+<link rel="dns-prefetch" href="https://4kzn.cc">
+<link rel="preconnect" href="https://www.qwmp4.com" crossorigin>
+<link rel="dns-prefetch" href="https://www.qwmp4.com">
+
+<!-- ============================================================
+     兼容引导层：文档第一个内联脚本，只用 ES5（var + function）。
+     旧内核（Chromium 50-70）先跑它。见开发文档 15.5。
+     ============================================================ -->
+<script src="boot.js"></script>
+
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="page-bg-blur" id="pageBgBlur" aria-hidden="true"></div>
+<div class="app" id="app">
+  <div class="ptr" id="ptr"><span class="ptr-ico" id="ptrIco">&#8595;</span><span id="ptrText">下拉刷新</span></div>
+  <div class="search-mask" id="searchMask"></div>
+  <div class="search-panel" id="searchPanel">
+    <div class="search-box">
+      <span class="search-ico"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.5"/><path d="M21 21l-4.3-4.3"/></svg></span>
+      <input id="search" class="search-input focusable" type="text" placeholder="搜片名，找网盘资源">
+      <button id="searchGo" class="search-go focusable" type="button" aria-label="搜索">搜索</button>
+      <div class="search-suggest" id="searchSuggest"></div>
+    </div>
+  </div>
+
+  <main>
+    <div id="homeView">
+      <div class="hero-wrap" id="heroWrap" hidden>
+        <div class="hero" id="heroCarousel" aria-label="推荐"></div>
+        <div class="hero-dots" id="heroDots"></div>
+      </div>
+      <div id="homeRows"></div>
+    </div>
+    <section class="section" id="catView" style="display:none">
+      <div class="cat-head">
+        <button id="catBack" class="icon-btn cat-back focusable" type="button" aria-label="返回">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span class="cat-title" id="catTitle">全部资源</span>
+        <div id="searchBar" class="cat-searchbar focusable" role="button" tabindex="0" aria-label="修改搜索词">
+          <span class="csb-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.5"/><path d="M21 21l-4.3-4.3"/></svg></span>
+          <span class="csb-kw" id="searchBarKw"></span>
+          <button id="clearSearch" class="clear-search focusable" type="button" aria-label="清空搜索词" style="display:none">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="genre-chips" id="genreChips"></div>
+        <span class="section-sub" id="browseSub"></span>
+        <button id="clearRecent" class="icon-btn recent-clear-btn focusable" type="button" aria-label="清空全部记录" style="display:none">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        </button>
+      </div>
+      <div class="section-head">
+        <span class="section-title" id="browseTitle" style="display:none"></span>
+      </div>
+      <div class="grid" id="grid"></div>
+      <div id="browseNotice"></div>
+      <div id="browseLoading" class="loading-row" style="display:none">加载中&#8230;</div>
+    </section>
+  </main>
+  <nav class="chips" id="chips" aria-label="导航"></nav>
+</div>
+
+<div class="sheet" id="detailSheet" aria-hidden="true">
+  <div class="ed-hero" id="edHero">
+    <div class="ed-hero-imgs" id="edHeroImgs"></div>
+    <div class="ed-hero-shade"></div>
+    <div class="ed-hero-blend"><div class="ed-blur-mid"></div></div>
+  </div>
+  <div class="ed-hero-spacer"></div>
+  <div class="ed-body">
+    <div class="ed-logo" id="edLogo"></div>
+    <div class="ed-title" id="detailTitle"></div>
+    <div class="ed-chips" id="detailTags"></div>
+    <button id="edPlay" class="ed-play focusable" type="button" data-focus-row="detailBtn">
+      <span class="tri">&#9654;</span><span id="edPlayLabel">播放</span>
+    </button>
+    <div class="ed-actions">
+      <button id="nativeSearch" class="ed-ico focusable" type="button" data-focus-row="detailAction" aria-label="网盘搜索">
+        <svg viewBox="-1 -1 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h.79a4.5 4.5 0 1 1 0 9Z" transform="translate(11.5,12) scale(1.2) translate(-11.5,-12)"/></svg>
+      </button>
+      <button id="appSearchBtn" class="ed-ico focusable" type="button" data-focus-row="detailAction" aria-label="App 内搜索">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </button>
+      <button id="edRefresh" class="ed-ico focusable" type="button" data-focus-row="detailAction" aria-label="刷新资源">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <button id="edFollow" class="ed-ico ed-follow focusable" type="button" data-focus-row="detailAction" aria-label="追更" title="追更">
+        <svg class="star-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2l2.55 5.17 5.71.83-4.13 4.03.98 5.7L12 16.18 6.89 18.93l.98-5.7L3.74 9.2l5.71-.83L12 3.2z"/></svg>
+      </button>
+    </div>
+    <div class="overview clamp" id="detailOverview"></div>
+    <div class="ed-episodes" id="edEpisodes"></div>
+    <div class="ed-cast" id="edCast"></div>
+    <div class="ed-works" id="edActorWorks"></div>
+    <div class="pan-head"><span class="title" id="panTitle">网盘资源</span><div class="ed-qtabs" id="qTabs"></div><span class="sub" id="panSub" style="display:none"></span></div>
+    <div class="pan-list" id="panList"><div class="pan-empty">正在读取资源&#8230;</div></div>
+  </div>
+</div>
+
+<div class="panel-overlay" id="settingsOverlay" aria-hidden="true">
+  <div class="panel-sheet">
+    <button id="cfgCloseX" class="panel-close focusable" type="button" aria-label="关闭">&#10005;</button>
+    <div class="set-hd"><h3>设置</h3></div>
+
+    <div class="set-group">
+      <div class="set-group-title">账号登录</div>
+      <p class="src-hint">配好账号密码后 Cookie 过期可自动或手动重登</p>
+      <div class="login-tabs" id="loginTabs" role="tablist">
+        <button type="button" class="login-tab active focusable" role="tab" aria-selected="true" data-login-tab="pl">盘链</button>
+        <button type="button" class="login-tab focusable" role="tab" aria-selected="false" data-login-tab="wn">蜗牛</button>
+        <button type="button" class="login-tab focusable" role="tab" aria-selected="false" data-login-tab="jy">聚影</button>
+      </div>
+      <div class="login-pane active" id="loginPanePl" data-login-pane="pl" role="tabpanel">
+        <div class="set-2col">
+          <div class="field">
+            <label>账号 / 邮箱</label>
+            <input id="cfgAccount" class="focusable" type="text" autocomplete="off" placeholder="邮箱或用户名">
+          </div>
+          <div class="field">
+            <label>密码</label>
+            <input id="cfgPassword" class="focusable" type="password" autocomplete="off" placeholder="登录密码">
+          </div>
+        </div>
+        <div class="field">
+          <label>盘链站点地址</label>
+          <input id="cfgBase" class="focusable" type="text" placeholder="https://pinglian.lol">
+        </div>
+        <div class="login-row" id="plCaptchaRow">
+          <button id="cfgLogin" class="btn small focusable" type="button">立即登录</button>
+          <button type="button" id="plCaptchaBox" class="wn-captcha-box focusable" title="点击换一张验证码" aria-label="点击换一张验证码">
+            <img id="plCaptchaImg" class="wn-captcha-img" alt="" decoding="async">
+            <span id="plCaptchaHint" class="wn-captcha-hint">验证码</span>
+          </button>
+          <input id="plCaptchaInput" class="focusable wn-captcha-input" type="text" inputmode="text" placeholder="验证码" autocomplete="off" maxlength="8">
+          <span id="loginState" class="login-state">未登录</span>
+        </div>
+        <label class="pl-remember-row focusable" id="plRememberRow">
+          <input type="checkbox" id="plRemember" class="pl-remember-cb" checked>
+          <span>30天免登录</span>
+        </label>
+      </div>
+      <div class="login-pane" id="loginPaneWn" data-login-pane="wn" role="tabpanel" hidden>
+        <div class="src-list">
+          <div class="src-row" data-home-key="wn">
+            <input id="cfgNameWn" class="src-name focusable" type="text" autocomplete="off" placeholder="蜗牛" title="主页显示名称，可自定义">
+            <input id="cfgWn" class="src-url focusable" type="text" autocomplete="off" placeholder="https://wn4k.com" title="站点域名">
+            <button type="button" class="src-eye focusable" data-eye-key="wn" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+        </div>
+        <div class="set-2col">
+          <div class="field">
+            <label>蜗牛账号</label>
+            <input id="cfgWnAccount" class="focusable" type="text" autocomplete="off" placeholder="登录账号">
+          </div>
+          <div class="field">
+            <label>蜗牛密码</label>
+            <input id="cfgWnPassword" class="focusable" type="password" autocomplete="off" placeholder="登录密码">
+          </div>
+        </div>
+        <div class="login-row">
+          <button id="cfgWnLogin" class="btn small focusable" type="button">登录蜗牛</button>
+          <span id="wnLoginState" class="login-state">未登录</span>
+        </div>
+        <div class="wn-captcha-row" id="wnCaptchaRow" style="display:none">
+          <img id="wnCaptchaImg" alt="验证码" class="wn-captcha-img">
+          <input id="wnCaptchaInput" class="focusable wn-captcha-input" type="text" inputmode="numeric" placeholder="验证码" autocomplete="off">
+          <button id="wnCaptchaRefreshBtn" class="btn small focusable" type="button">换一张</button>
+          <button id="wnCaptchaConfirm" class="btn small focusable" type="button">确认登录</button>
+        </div>
+      </div>
+      <div class="login-pane" id="loginPaneJy" data-login-pane="jy" role="tabpanel" hidden>
+        <div class="src-list">
+          <div class="src-row" data-home-key="jy">
+            <input id="cfgNameJy" class="src-name focusable" type="text" autocomplete="off" placeholder="聚影" title="主页显示名称，可自定义">
+            <input id="cfgJy" class="src-url focusable" type="text" autocomplete="off" placeholder="https://jying.top" title="站点域名">
+            <button type="button" class="src-eye focusable" data-eye-key="jy" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+        </div>
+        <div class="set-2col">
+          <div class="field">
+            <label>聚影账号</label>
+            <input id="cfgJyAccount" class="focusable" type="text" autocomplete="off" placeholder="用户名或邮箱">
+          </div>
+          <div class="field">
+            <label>聚影密码</label>
+            <input id="cfgJyPassword" class="focusable" type="password" autocomplete="off" placeholder="登录密码">
+          </div>
+        </div>
+        <div class="login-row">
+          <button id="cfgJyLogin" class="btn small focusable" type="button">登录聚影</button>
+          <span id="jyLoginState" class="login-state">未登录</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="set-group">
+      <div class="set-group-title">数据服务</div>
+      <div class="set-2col">
+        <div class="field">
+          <label>TMDB Key</label>
+          <input id="cfgTmdb" class="focusable" type="password" autocomplete="off" placeholder="留空用站点海报">
+        </div>
+        <div class="field">
+          <label>TMDB 图片域名</label>
+          <input id="cfgTmdbImg" class="focusable" type="text" placeholder="image.tmdb.org">
+        </div>
+      </div>
+      <div class="field">
+        <label>TMDB 数据接口 <span class="hint">默认 api.tmdb.org；官方 api.themoviedb.org 国内易被墙</span></label>
+        <input id="cfgTmdbApi" class="focusable" type="text" placeholder="api.tmdb.org">
+      </div>
+      <div class="field">
+        <label>盘搜地址 <span class="hint">详情页「网盘搜索」</span></label>
+        <input id="cfgPanApi" class="focusable" type="text" placeholder="https://so.252035.xyz">
+      </div>
+      <div class="field">
+        <label>觅盘地址 <span class="hint">与盘搜并行；点云朵一并搜索</span></label>
+        <input id="cfgMipanApi" class="focusable" type="text" placeholder="https://www.mipan.so">
+      </div>
+      <p class="src-hint">TMDB 热播主页行：名称可改；眼睛控制是否在主页显示（无需单独域名）</p>
+      <div class="src-list">
+      <div class="src-row" data-home-key="tmdb">
+        <input id="cfgNameTmdb" class="src-name focusable" type="text" autocomplete="off" placeholder="TMDB 热播" title="主页显示名称，可自定义">
+        <input id="cfgTmdbNameDummy" class="src-url focusable" type="text" autocomplete="off" placeholder="使用上方 TMDB 配置" title="站点域名" readonly>
+        <button type="button" class="src-eye focusable" data-eye-key="tmdb" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="src-row" data-home-key="zhuiju">
+        <input id="cfgNameZhuiju" class="src-name focusable" type="text" autocomplete="off" placeholder="追剧" title="主页显示名称，可自定义">
+        <input id="cfgZhuijuDummy" class="src-url focusable" type="text" autocomplete="off" placeholder="api.souju.ai 追剧周表" title="数据源" readonly>
+        <button type="button" class="src-eye focusable" data-eye-key="zhuiju" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      </div>
+    </div>
+
+    <div class="set-group">
+      <div class="set-group-title">第三方站源</div>
+      <p class="src-hint">一排：显示名称（可改）· 域名 · 眼睛（主页行显隐）。含 4K指南（豆瓣高分）等；不含盘链本站分类。</p>
+      <div class="src-list">
+      <div class="src-row" data-home-key="zn4k_top">
+        <input id="cfgNameZn4k" class="src-name focusable" type="text" autocomplete="off" placeholder="豆瓣高分" title="主页显示名称，可自定义">
+        <input id="cfgZn4k" class="src-url focusable" type="text" autocomplete="off" placeholder="https://4kzn.cc" title="站点域名">
+        <button type="button" class="src-eye focusable" data-eye-key="zn4k_top" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="src-row" data-home-key="qw">
+        <input id="cfgNameQw" class="src-name focusable" type="text" autocomplete="off" placeholder="七味" title="主页显示名称，可自定义">
+        <input id="cfgQw" class="src-url focusable" type="text" autocomplete="off" placeholder="https://www.qwmp4.com" title="站点域名">
+        <button type="button" class="src-eye focusable" data-eye-key="qw" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="src-row" data-home-key="sh">
+        <input id="cfgNameSh" class="src-name focusable" type="text" autocomplete="off" placeholder="SeedHub" title="主页显示名称，可自定义">
+        <input id="cfgSh" class="src-url focusable" type="text" autocomplete="off" placeholder="https://sidhub.cc" title="站点域名">
+        <button type="button" class="src-eye focusable" data-eye-key="sh" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="src-row" data-home-key="hg">
+        <input id="cfgNameHg" class="src-name focusable" type="text" autocomplete="off" placeholder="黄果" title="主页显示名称，可自定义">
+        <input id="cfgHg" class="src-url focusable" type="text" autocomplete="off" placeholder="https://huangguoai.com" title="站点域名">
+        <button type="button" class="src-eye focusable" data-eye-key="hg" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+            <div class="src-row" data-home-key="hd">
+        <input id="cfgNameHd" class="src-name focusable" type="text" autocomplete="off" placeholder="黄豆" title="主页显示名称，可自定义">
+        <input id="cfgHd" class="src-url focusable" type="text" autocomplete="off" placeholder="https://hd.wulii.de5.net" title="Worker 代理地址（Cloudflare Worker）">
+        <button type="button" class="src-eye focusable" data-eye-key="hd" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+
+      <div class="src-row" data-home-key="hj">
+        <input id="cfgNameHj" class="src-name focusable" type="text" autocomplete="off" placeholder="红果黄剧" title="主页显示名称，可自定义">
+        <input id="cfgHj" class="src-url focusable" type="text" autocomplete="off" placeholder="https://api.huangju.net" title="API 地址">
+        <button type="button" class="src-eye focusable" data-eye-key="hj" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="src-row" data-home-key="jg">
+        <input id="cfgNameJg" class="src-name focusable" type="text" autocomplete="off" placeholder="禁果短剧" title="主页显示名称，可自定义">
+        <input id="cfgJg" class="src-url focusable" type="text" autocomplete="off" placeholder="https://jinguoduanju.app" title="站点域名">
+        <button type="button" class="src-eye focusable" data-eye-key="jg" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="src-row" data-home-key="yg">
+        <input id="cfgNameYg" class="src-name focusable" type="text" autocomplete="off" placeholder="野果短剧" title="主页显示名称，可自定义">
+        <input id="cfgYg" class="src-url focusable" type="text" autocomplete="off" placeholder="https://www.yeguodj.com/api.php" title="API 地址">
+        <button type="button" class="src-eye focusable" data-eye-key="yg" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+<div class="src-row" data-home-key="bbj" style="display:none">
+        <input id="cfgNameBbj" class="src-name focusable" type="text" autocomplete="off" placeholder="JAVDB" title="主页显示名称，可自定义">
+        <input id="cfgBbj" class="src-url focusable" type="text" autocomplete="off" placeholder="https://bbjavdb.emby.edu.kg" title="站点域名">
+        <button type="button" class="src-eye focusable" data-eye-key="bbj" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="src-row" data-home-key="jrank" style="display:none">
+        <input id="cfgNameJrank" class="src-name focusable" type="text" autocomplete="off" placeholder="JavRanking" title="主页显示名称，可自定义">
+        <input id="cfgJrank" class="src-url focusable" type="text" autocomplete="off" placeholder="https://javranking.pages.dev" title="站点域名（原 javranking.top 已失效，改用 Cloudflare Pages 镜像）">
+        <button type="button" class="src-eye focusable" data-eye-key="jrank" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="src-row" data-home-key="wo">
+        <input id="cfgNameWo" class="src-name focusable" type="text" autocomplete="off" placeholder="玩偶" title="主页显示名称，可自定义">
+        <input id="cfgWo" class="src-url focusable" type="text" autocomplete="off" placeholder="https://wogg.xxooo.cf" title="站点域名">
+        <button type="button" class="src-eye focusable" data-eye-key="wo" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="src-row" data-home-key="mo">
+        <input id="cfgNameMo" class="src-name focusable" type="text" autocomplete="off" placeholder="花卷" title="主页显示名称，可自定义">
+        <input id="cfgMo" class="src-url focusable" type="text" autocomplete="off" placeholder="https://www.hjzhencai.top" title="站点域名">
+        <button type="button" class="src-eye focusable" data-eye-key="mo" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="src-row" data-home-key="pm">
+        <input id="cfgNamePm" class="src-name focusable" type="text" autocomplete="off" placeholder="pomo" title="主页显示名称，可自定义">
+        <input id="cfgPm" class="src-url focusable" type="text" autocomplete="off" placeholder="https://pomo.mom" title="站点域名">
+        <button type="button" class="src-eye focusable" data-eye-key="pm" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      
+      
+      <div class="src-row" data-home-key="dd">
+        <input id="cfgNameDd" class="src-name focusable" type="text" autocomplete="off" placeholder="多多" title="主页显示名称，可自定义">
+        <input id="cfgDd" class="src-url focusable" type="text" autocomplete="off" placeholder="https://pan.yydsys.de" title="站点域名">
+        <button type="button" class="src-eye focusable" data-eye-key="dd" aria-label="主页显示" title="显示/隐藏主页该站源行" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      </div>
+    </div>
+
+    <div class="set-group">
+      <div class="set-group-title">网盘类别</div>
+      <div class="field">
+        <label>选择要显示的网盘类别 <span class="hint">默认全部显示；取消的类别不会出现在网盘资源里（某类别最终没有资源时也会自动隐藏）</span></label>
+        <div class="pan-type-wrap" id="cfgPanTypes"></div>
+      </div>
+    </div>
+
+    <div class="set-group">
+    <div class="set-group">
+      <div class="set-group-title">攒劲果果</div>
+      <div class="toggle-row">
+        <div class="lbl">启用短剧源<small>黄果 / 黄豆 / 红果黄剧 / 禁果 / 野果；默认关闭，打开后主页显示这些行</small></div>
+        <button id="cfgGuoguo" type="button" class="switch focusable" role="switch" aria-checked="false"><span class="knob"></span></button>
+      </div>
+    </div>
+
+      <div class="set-group-title">详情页</div>
+      <div class="toggle-row">
+        <div class="lbl">全站聚合资源<small>开：点进某站也会并入其它站同名网盘/磁力（更全，稍慢）；关：只显示当前站资源（更轻快）</small></div>
+        <button id="cfgAggregateRes" type="button" class="switch focusable" role="switch" aria-checked="false"><span class="knob"></span></button>
+      </div>
+      <div class="toggle-row">
+        <div class="lbl">剧集单集列表<small>剧/综艺/动漫详情页里的分季单集卡片；关闭后不显示该区块，只保留网盘资源</small></div>
+        <button id="cfgShowEpisodes" type="button" class="switch focusable" role="switch" aria-checked="true"><span class="knob"></span></button>
+      </div>
+    </div>
+
+    <div class="set-group set-status">
+      <div id="statusBlock"></div>
+    </div>
+
+    <div class="panel-actions">
+      <button id="cfgSave" class="btn primary focusable" type="button">保存</button>
+      <button id="cfgClose" class="btn focusable" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel-overlay" id="confirmOverlay" aria-hidden="true">
+  <div class="panel-sheet confirm-sheet">
+    <h3 class="confirm-title" id="confirmTitle">确认</h3>
+    <p class="confirm-text" id="confirmText"></p>
+    <div class="panel-actions">
+      <button id="confirmOk" class="btn danger focusable" type="button">确定</button>
+      <button id="confirmCancel" class="btn focusable" type="button">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="unlock-egg" id="unlockEgg" aria-hidden="true">
+  <div class="unlock-egg-core">
+    <div class="unlock-egg-ring"></div>
+    <div class="unlock-egg-title">已解锁</div>
+    <div class="unlock-egg-sub">骚年，光来了！</div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script src="sites-short.js"></script>
+</body>
+</html>

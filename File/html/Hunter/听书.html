@@ -1442,6 +1442,12 @@
             opacity: 1;
         }
 
+        /* 播放页(9998) 与详情页 谁后打开谁在上 —— 由 JS 动态交换 inline z-index 决定。
+           CSS 这里只给兜底值：详情页默认抬到 9999，避免从播放页点推荐时被 9998 盖住。 */
+        body.detail-open .detail-modal {
+            z-index: 9999;
+        }
+
         .detail-modal.gesture-dragging {
             transition: none !important;
         }
@@ -1687,6 +1693,14 @@
             border-radius: 4px;
             background: rgba(212, 175, 119, 0.2);
             color: var(--primary-light);
+        }
+
+        /* 书籍标签容器：与外层 .detail-tags 同步 6px 间距（含换行行距） */
+        .detail-book-tags {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
         }
 
         .detail-stats {
@@ -2174,6 +2188,25 @@
             color: var(--text-primary);
             flex: 1;
         }
+        .settings-row-hint {
+            display: block;
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-top: 3px;
+            line-height: 1.35;
+        }
+        .settings-mini-btn {
+            flex-shrink: 0;
+            font-size: 12px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .settings-mini-btn:active { opacity: 0.7; }
         /* 开关按钮 */
         .ui-switch {
             position: relative;
@@ -2745,6 +2778,64 @@
             background: rgba(180, 150, 100, 0.08);
             border: 1px solid rgba(180, 150, 100, 0.1);
         }
+        .xmly-qr-panel {
+            margin-top: 14px;
+            padding: 14px;
+            border-radius: 12px;
+            background: rgba(180, 150, 100, 0.06);
+            border: 1px solid rgba(180, 150, 100, 0.15);
+            text-align: center;
+        }
+        .xmly-qr-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+        .xmly-qr-img-wrap {
+            position: relative;
+            display: inline-block;
+            width: 200px;
+            height: 200px;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #fff;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+        }
+        .xmly-qr-img-wrap img {
+            display: block;
+            width: 200px;
+            height: 200px;
+            object-fit: contain;
+        }
+        .xmly-qr-mask {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .xmly-qr-status {
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            min-height: 20px;
+        }
+        .xmly-qr-status.ok { color: #34D399; }
+        .xmly-qr-status.warn { color: #FBBF24; }
+        .xmly-qr-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        html[data-theme="light"] .xmly-qr-panel {
+            background: rgba(0,0,0,0.03);
+            border-color: rgba(0,0,0,0.08);
+        }
 
         /* ========== Toast提示 ========== */
         .toast {
@@ -2952,15 +3043,65 @@
             margin-bottom: 0 !important;
             flex-shrink: 0;
         }
+        /* 封面/相关 切换控件：位置钉死策略
+           - 与 header 之间留 12px 空隙，彻底避开顶部标题/作者文字
+           - 与下方内容之间留 16px 空隙，封面/列表不会被按钮压到
+           - CSS 负责垂直居中（cover view 用 margin: auto auto）
+           - JS 只负责钉 switch.top 与 panel.marginTop（related view） */
+        .play-page:not(.list-open) .play-view-switch {
+            position: absolute;
+            /* top 由 JS 测量 header 实际高度 + 12px 后写入 */
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            margin: 0 !important;
+            z-index: 5;
+            flex-shrink: 0;
+        }
+        /* 封面视图：封面卡片上下间距相等
+           ——JS 把计算好的间距写入 content 上的自定义属性 --play-disc-mt / --play-disc-mb，
+             让「按钮→封面」与「封面→下方文字」的视觉间距完全一致；
+             用自定义属性而非 inline margin，列表展开态(list-open)的样式表规则即可正常覆盖，
+             收起时属性值仍在，布局平滑还原，不存在 inline !important 压住样式表的泄漏问题 */
         .play-page:not(.list-open) .play-page-disc {
-            width: min(62vw, 240px) !important;
-            height: min(62vw, 240px) !important;
-            margin-top: auto !important;
-            margin-bottom: 14px !important;
+            width: min(76vw, 300px) !important;
+            height: min(76vw, 300px) !important;
+            margin-top: var(--play-disc-mt, calc(4px - 2px * var(--play-collapse, 0))) !important;
+            margin-bottom: var(--play-disc-mb, calc(12px - 8px * var(--play-collapse, 0))) !important;
             margin-left: auto !important;
             margin-right: auto !important;
             border-radius: 16px !important;
             flex-shrink: 0;
+        }
+        /* 相关推荐面板：独立的全宽列表，JS 动态设置上偏移 */
+        .play-page:not(.list-open).view-transcript .play-page-transcript {
+            display: block !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            flex: 1 1 0 !important;
+            flex-shrink: 1 !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding: 4px 0;
+            touch-action: pan-y;
+        }
+        .play-page:not(.list-open).view-transcript .play-page-disc {
+            display: none !important;
+        }
+        .play-page.list-open .play-view-switch {
+            display: none !important;
+        }
+        .play-page.list-open .play-page-transcript {
+            display: none !important;
         }
         .play-page:not(.list-open) .play-page-info {
             max-height: none !important;
@@ -2986,7 +3127,7 @@
         .play-page:not(.list-open) .play-page-controls {
             margin-bottom: calc(var(--fm-safe-bottom, 0px) + 20px) !important;
             transform: none !important;
-            gap: 40px !important;
+            gap: 22px !important;
             flex-shrink: 0;
         }
         .play-page:not(.list-open) .play-main-btn {
@@ -2999,11 +3140,63 @@
         .play-page.list-open .play-page-content {
             justify-content: flex-start;
         }
+        /* 列表展开时顶部书名/作者不应被呼吸收缩影响 */
+        .play-page.list-open .play-page-header {
+            margin-bottom: 20px !important;
+            flex-shrink: 0;
+        }
+        .play-page.list-open .play-page-book {
+            padding-top: 3px;
+            padding-bottom: 3px;
+            line-height: 1.35;
+        }
+        .play-page.list-open .play-page-title {
+            padding-top: 2px;
+            padding-bottom: 2px;
+            line-height: 1.4;
+        }
         .play-page.list-open .play-page-disc {
             margin-top: calc(4px - 2px * var(--play-collapse, 0)) !important;
+            margin-bottom: calc(18px - 8px * var(--play-collapse, 0)) !important;
         }
         .play-page.list-open .play-tool-row {
             margin-top: 0 !important;
+        }
+        /* 播放页专辑标签（封面卡片上方，与详情页同一套数据）
+           间距规则：标签 ↔ 卡片 的距离 = 卡片 ↔ 底部文字 的距离
+           - 沉浸态：由 JS 统一计算（tagsGap = cardTextGap = 24px），写在 .play-page-disc 的 margin-top
+           - 展开态：这里直接对齐卡片自身的 margin-bottom（18px - 8px * collapse），
+             并用 !important 覆盖沉浸态写进标签 inline 的 margin-top，避免切换时残留大空隙；
+             标签的 margin-bottom + 卡片 margin-top(4px - 2px * collapse) 正好凑成同一个间距 */
+        .play-page-tags {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            margin-top: 0;
+            margin-bottom: 0;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 0 24px;
+            flex-shrink: 0;
+            max-width: 100%;
+        }
+        .play-page-tags:empty,
+        .play-page.view-transcript .play-page-tags {
+            display: none;
+        }
+        .play-page.list-open .play-page-tags {
+            margin-top: calc(18px - 8px * var(--play-collapse, 0)) !important;
+            margin-bottom: calc(14px - 6px * var(--play-collapse, 0)) !important;
+        }
+        .play-page-tags .play-tag {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(212, 175, 119, 0.2);
+            color: var(--primary-light);
+            white-space: nowrap;
         }
 
         html[data-theme="light"] .play-page.list-open .play-tool-btn.play-list-toggle {
@@ -3149,7 +3342,7 @@
             flex-direction: column;
             gap: 2px;
             margin-top: 13px;
-            padding-top: 0;
+            padding-top: 8px;
         }
         .play-page-book {
             color: #fff;
@@ -3194,10 +3387,10 @@
         .play-page-disc::before {
             content: '';
             position: absolute;
-            inset: -10px;
-            border-radius: 22px;
-            background: radial-gradient(circle at 50% 40%, rgba(232, 207, 160, 0.35), transparent 65%);
-            opacity: 0.35;
+            inset: 0;
+            border-radius: inherit;
+            background: radial-gradient(circle at 50% 0%, rgba(232, 207, 160, 0.5), transparent 72%);
+            opacity: 0.45;
             z-index: 0;
             pointer-events: none;
             transition: opacity 0.45s ease;
@@ -3212,7 +3405,7 @@
             border-radius: 16px;
         }
         .play-page-disc.playing {
-            box-shadow: 0 16px 48px rgba(212, 175, 119, 0.35), 0 0 0 1px rgba(232, 207, 160, 0.15);
+            box-shadow: 0 -16px 40px rgba(232, 207, 160, 0.25), 0 16px 48px rgba(212, 175, 119, 0.35), 0 0 0 1px rgba(232, 207, 160, 0.15);
             animation: disc-breathe 3.6s ease-in-out infinite;
         }
         .play-page-disc.playing::before {
@@ -3234,6 +3427,167 @@
             0%, 100% { transform: rotate(-1.2deg) scale(1); }
             50% { transform: rotate(1.2deg) scale(1.01); }
         }
+
+        /* ========== 封面/文稿 切换控件 ========== */
+        .play-view-switch {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            margin: 0 auto 16px;
+            padding: 3px;
+            width: fit-content;
+            border-radius: 999px;
+            background: transparent;
+            border: 1px solid var(--border-light);
+            flex-shrink: 0;
+        }
+        .play-view-switch.hidden { display: none; }
+        .play-view-tab {
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 22px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            white-space: nowrap;
+            outline: none;
+        }
+        .play-view-tab.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        .play-view-tab:not(.active):active { transform: scale(0.95); }
+        html[data-theme="light"] .play-view-switch {
+            border-color: rgba(28, 25, 21, 0.12);
+        }
+        html[data-theme="light"] .play-view-tab.active {
+            background: rgba(28, 25, 21, 0.08);
+        }
+
+        /* ========== 相关推荐视图（原「文稿」位） ========== */
+        /* 不框起来：无边框、无卡片背景；自上而下撑满「切换控件 → 底部控件」之间的可用空间 */
+        .play-page-transcript {
+            display: none;
+            width: 100%;
+            max-width: 100%;
+            margin: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding: 4px 0;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            flex: 1 1 0;
+            min-height: 0;
+            touch-action: pan-y;
+            transition: opacity 0.3s ease;
+            /* 隐藏滚动条（保留滚动能力） */
+            scrollbar-width: none;
+            scrollbar-color: transparent transparent;
+        }
+        .play-page-transcript::-webkit-scrollbar {
+            display: none;
+            width: 0;
+            height: 0;
+        }
+        html[data-theme="light"] .play-page-transcript {
+            scrollbar-color: transparent transparent;
+        }
+        .play-page-transcript.show { display: block; }
+        .play-page.view-transcript .play-page-disc { display: none; }
+        .play-page.view-transcript .play-page-disc::before { display: none; }
+        /* 切到「相关」时隐藏底部标题，不再保留占位高度，让列表紧贴底部控件（间距由 JS safePadding 控制） */
+        .play-page.view-transcript .play-page-info {
+            display: none !important;
+        }
+        .play-transcript-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 13px;
+            padding: 32px 0;
+        }
+        /* 相关推荐列表：整列全宽铺满，自上而下布满到进度条之上 */
+        .play-related-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 8px 0;
+            width: 100%;
+            min-height: 100%;
+            box-sizing: border-box;
+        }
+        .play-related-item {
+            flex: 1 1 0;
+            min-height: 64px;
+            max-height: 110px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 6px 0;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+        .play-related-item:active { opacity: 0.55; transform: scale(0.985); }
+        .play-related-cover {
+            position: relative;
+            width: 64px;
+            height: 64px;
+            flex-shrink: 0;
+            border-radius: 10px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.07);
+        }
+        .play-related-cover .no-cover-placeholder { font-size: 22px !important; }
+        .play-related-cover img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .play-related-meta {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .play-related-title {
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.35;
+            color: var(--text-primary);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .play-related-author {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .play-related-empty {
+            padding: 32px 0;
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 13px;
+        }
+        html[data-theme="light"] .play-related-cover {
+            background: rgba(28, 25, 21, 0.07);
+        }
+
         .skip-bar {
             display: flex;
             align-items: center;
@@ -3363,7 +3717,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: calc(40px - 16px * var(--play-collapse, 0));
+            gap: calc(22px - 8px * var(--play-collapse, 0));
             margin-bottom: calc(24px - 14px * var(--play-collapse, 0));
             flex-shrink: 0;
             transform: scale(calc(1 - 0.12 * var(--play-collapse, 0)));
@@ -4037,14 +4391,26 @@
             margin: 0;
         }
         .sort-toggle-btn {
-            border: none;
+            border: 1px solid transparent;
             background: rgba(255,255,255,0.08);
             color: rgba(255,255,255,0.85);
             border-radius: 14px;
-            padding: 6px 12px;
+            padding: 5px 12px;
             font-size: 12px;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            line-height: 1;
         }
+        .sort-toggle-btn .sort-ico {
+            width: 13px;
+            height: 13px;
+            flex-shrink: 0;
+        }
+        .sort-toggle-btn .sort-ico-desc { display: none; }
+        .sort-toggle-btn.sort-desc .sort-ico-asc { display: none; }
+        .sort-toggle-btn.sort-desc .sort-ico-desc { display: inline-block; }
         .play-page-list-header {
             display: flex;
             align-items: center;
@@ -4204,6 +4570,11 @@
         html[data-theme="light"] .play-page-list-header {
             color: rgba(28, 25, 21, 0.55) !important;
             border-top-color: rgba(28, 25, 21, 0.1) !important;
+        }
+        html[data-theme="light"] .sort-toggle-btn {
+            background: rgba(28, 25, 21, 0.06) !important;
+            color: #1C1915 !important;
+            border-color: rgba(28, 25, 21, 0.18) !important;
         }
         html[data-theme="light"] .play-sort-btn,
         html[data-theme="light"] .play-locate-btn {
@@ -4488,8 +4859,21 @@
                 <div class="play-page-book" id="playPageBookTitle"></div>
                 <div class="play-page-title" id="playPageAuthor"></div>
             </div>
+            <!-- 封面/相关 切换控件 -->
+            <div class="play-view-switch" id="playViewSwitch">
+                <button type="button" class="play-view-tab active" data-view="cover" id="playViewTabCover">封面</button>
+                <button type="button" class="play-view-tab" data-view="related" id="playViewTabRelated">相关</button>
+            </div>
+            <!-- 专辑标签（与详情页同步，显示在封面卡片上方） -->
+            <div class="play-page-tags" id="playPageBookTags"></div>
+            <!-- 封面卡片 -->
             <div class="play-page-disc" id="playPageDisc">
                 <img id="playPageCover" src="" alt="" referrerpolicy="no-referrer">
+            </div>
+            <!-- 相关推荐视图 -->
+            <div class="play-page-transcript play-related-panel" id="playPageTranscript">
+                <div class="play-transcript-loading" id="playTranscriptLoading">正在获取相关推荐…</div>
+                <div class="play-related-list" id="playRelatedList"></div>
             </div>
             <div class="play-page-info">
                 <div class="play-page-track-title" id="playPageTrackTitle">未知</div>
@@ -4568,6 +4952,11 @@
                         <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"></path>
                     </svg>
                 </button>
+                <button class="play-ctrl-btn" id="playBack15Btn" title="快退15秒">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true">
+                        <path d="M11.99 5V1L7 5l4.99 4V6c3.87 0 7 3.13 7 7 0 3.87-3.13 7-7 7s-7-3.13-7-7h-2c0 4.97 4.03 9 9 9s9-4.03 9-9c0-4.97-4.03-9-9-9z"/>
+                    </svg>
+                </button>
                 <button class="play-ctrl-btn play-main-btn" id="playPlayBtn" title="播放/暂停">
                     <svg id="playPagePlayIcon" viewBox="0 0 24 24" fill="currentColor" width="36" height="36">
                         <path d="M8 5v14l11-7z"></path>
@@ -4577,6 +4966,11 @@
                     </svg>
                     <svg id="playPageLoadingIcon" class="player-loading-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" width="36" height="36" style="display:none;">
                         <path d="M12 3a9 9 0 1 0 9 9" />
+                    </svg>
+                </button>
+                <button class="play-ctrl-btn" id="playForward15Btn" title="快进15秒">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true">
+                        <path d="M12.01 5V1L17 5l-4.99 4V6c-3.87 0-7 3.13-7 7 0 3.87 3.13 7 7 7s7-3.13 7-7h2c0 4.97-4.03 9-9 9s-9-4.03-9-9c0-4.97 4.03-9 9-9z"/>
                     </svg>
                 </button>
                 <button class="play-ctrl-btn" id="playNextBtn" title="下一章">
@@ -4711,10 +5105,24 @@
                 <textarea class="settings-textarea" id="xmlyCkInput" placeholder="只需：1&_token=你的token&#10;可选：uid=你的用户ID" spellcheck="false" autocomplete="off"></textarea>
                 <div class="settings-actions">
                     <button class="settings-btn primary" id="xmlyCkSave" type="button">保存</button>
+                    <button class="settings-btn ghost" id="xmlyCkQrBtn" type="button" style="display:none">扫码登录</button>
                     <button class="settings-btn ghost" id="xmlyCkClear" type="button">清除</button>
                 </div>
                 <div class="settings-status" id="xmlyCkStatus"></div>
-                <div class="settings-tip" id="ckSourceTip">登录 www.ximalaya.com → F12 → Network → 点任意请求 → 只复制 Cookie 里的 1&amp;_token（建议带上 uid）。其余通用字段已内置。</div>
+                <div class="settings-tip" id="ckSourceTip">登录 www.ximalaya.com → F12 → Network → 点任意请求 → 复制完整 Cookie（含 1&amp;_token、crystal、wfp）。付费精品勿只贴 token。</div>
+                <div id="xmlyQrPanel" class="xmly-qr-panel" style="display:none" aria-live="polite">
+                    <div class="xmly-qr-title">喜马拉雅扫码登录</div>
+                    <div class="xmly-qr-img-wrap">
+                        <img id="xmlyQrImg" alt="登录二维码" width="200" height="200">
+                        <div id="xmlyQrMask" class="xmly-qr-mask" style="display:none">已过期</div>
+                    </div>
+                    <div class="xmly-qr-status" id="xmlyQrStatus">请使用喜马拉雅 APP 扫码</div>
+                    <div class="xmly-qr-actions">
+                        <button type="button" class="settings-btn primary" id="xmlyQrRefresh">刷新二维码</button>
+                        <button type="button" class="settings-btn ghost" id="xmlyQrClose">关闭</button>
+                    </div>
+                    <div class="settings-tip">扫码成功后会自动尝试写入 Cookie。若未写入，请到官方网页登录后手动复制完整 Cookie 粘贴保存。</div>
+                </div>
             </div>
 
 
@@ -4811,6 +5219,14 @@
                 <div class="settings-row">
                     <span class="settings-row-label">启动时自动播放上次音频</span>
                     <button type="button" class="ui-switch" id="autoPlaySwitch" aria-label="自动播放开关"></button>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-row-label">离线预加载<span class="settings-row-hint">缓存后续 5 集到本地，弱网/锁屏也能连播</span></span>
+                    <button type="button" class="ui-switch" id="preloadSwitch" aria-label="离线预加载开关"></button>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-row-label">已缓存音频<span class="settings-row-hint" id="preloadCacheInfo">统计中…</span></span>
+                    <button type="button" class="settings-mini-btn" id="preloadClearBtn">清空</button>
                 </div>
             </div>
 
@@ -5186,11 +5602,13 @@
                     { name: '玄幻', keyword: '玄幻', catId: 3, metadataValues: '玄幻' },
                     { name: '军事', keyword: '军事', catId: 3, metadataValues: '军事' },
                     { name: '仙侠', keyword: '仙侠', catId: 3, metadataValues: '仙侠' },
-                    { name: '科幻', keyword: '科幻', catId: 3, metadataValues: '科幻' },
+                    /* 「科幻」「N次元」不是官方元数据维度（官方只有 男频/女频/播讲形式），
+                       用分类标签会串到都市、游戏异界等内容，改关键词搜索更精准 */
+                    { name: '科幻', keyword: '科幻 有声书' },
                     { name: '武侠', keyword: '武侠', catId: 3, metadataValues: '武侠' },
                     { name: '奇幻', keyword: '奇幻', catId: 3, metadataValues: '奇幻' },
                     { name: '游戏', keyword: '游戏', catId: 3, metadataValues: '游戏' },
-                    { name: 'N次元', keyword: 'N次元', catId: 3, metadataValues: 'N次元' },
+                    { name: 'N次元', keyword: '动漫同人 有声' },
                     { name: '体育', keyword: '体育', catId: 3, metadataValues: '体育' }
                 ]},
                 { name: '女频', keyword: '女频 有声书', catId: 3, metadataValues: '女频', children: [
@@ -5201,110 +5619,182 @@
                     { name: '爱情悬疑', keyword: '爱情悬疑', catId: 3, metadataValues: '爱情悬疑' },
                     { name: '双男主', keyword: '双男主', catId: 3, metadataValues: '双男主' }
                 ]},
-                { name: '情节', keyword: '情节 有声书', catId: 3, children: [
-                    { name: '穿越', keyword: '穿越', catId: 3, metadataValues: '穿越' },
-                    { name: '重生', keyword: '重生', catId: 3, metadataValues: '重生' },
-                    { name: '系统流', keyword: '系统流', catId: 3, metadataValues: '系统流' },
-                    { name: '脑洞', keyword: '脑洞', catId: 3, metadataValues: '脑洞' },
-                    { name: '穿书', keyword: '穿书', catId: 3, metadataValues: '穿书' },
-                    { name: '空间', keyword: '空间', catId: 3, metadataValues: '空间' }
+                /* 「情节」不是官方元数据维度，实测穿越/重生/系统流等标签均不生效（退化成整个分类），
+                   因此改为纯关键词搜索，结果反而更贴合 */
+                { name: '情节', keyword: '情节 有声书', children: [
+                    { name: '穿越', keyword: '穿越 有声书' },
+                    { name: '重生', keyword: '重生 有声书' },
+                    { name: '系统流', keyword: '系统流 有声书' },
+                    { name: '脑洞', keyword: '脑洞 有声书' },
+                    { name: '穿书', keyword: '穿书 有声书' },
+                    { name: '空间', keyword: '空间 有声书' }
                 ]},
+                /* 以下是官方「相声评书 catId=12」下的真实子标签；
+                   单田芳等艺人不是元数据维度，走关键词搜索 */
                 { name: '相声评书', keyword: '相声评书', catId: 12, children: [
                     { name: '全部', keyword: '相声评书', catId: 12 },
-                    { name: '单田芳', keyword: '单田芳' },
-                    { name: '刘兰芳', keyword: '刘兰芳' },
-                    { name: '袁阔成', keyword: '袁阔成' },
-                    { name: '连丽如', keyword: '连丽如' },
-                    { name: '短打评书', keyword: '短打评书' },
-                    { name: '历史评书', keyword: '历史评书' },
-                    { name: '相声小品', keyword: '相声小品' }
+                    { name: '相声', keyword: '相声 评书', catId: 12, metadataValues: '相声' },
+                    { name: '评书', keyword: '评书 有声', catId: 12, metadataValues: '评书' },
+                    { name: '小品', keyword: '小品 有声', catId: 12, metadataValues: '小品' },
+                    { name: '戏曲', keyword: '戏曲 有声', catId: 12, metadataValues: '戏曲' },
+                    { name: '其他曲艺', keyword: '曲艺 有声', catId: 12, metadataValues: '其他曲艺' },
+                    { name: '单田芳', keyword: '单田芳 评书' },
+                    { name: '刘兰芳', keyword: '刘兰芳 评书' },
+                    { name: '袁阔成', keyword: '袁阔成 评书' },
+                    { name: '连丽如', keyword: '连丽如 评书' }
                 ]},
                 { name: '儿童', keyword: '儿童故事', catId: 6, children: [
                     { name: '全部', keyword: '儿童故事', catId: 6 },
-                    { name: '益智故事', keyword: '益智故事' },
-                    { name: '儿童文学', keyword: '儿童文学 有声' },
-                    { name: '国学启蒙', keyword: '国学启蒙' },
-                    { name: '家教育儿', keyword: '家教育儿' },
-                    { name: '卡通动画', keyword: '卡通动画 有声' },
-                    { name: '少儿名著', keyword: '少儿名著' },
-                    { name: '少儿科普', keyword: '少儿科普' },
-                    { name: '绘本早教', keyword: '绘本早教' },
-                    { name: '儿歌童谣', keyword: '儿歌童谣' }
+                    { name: '儿童故事', keyword: '儿童故事 有声', catId: 6, metadataValues: '儿童故事' },
+                    { name: '少儿文学', keyword: '少儿文学 有声', catId: 6, metadataValues: '少儿文学' },
+                    { name: '儿童音乐', keyword: '儿童音乐 儿歌', catId: 6, metadataValues: '儿童音乐' },
+                    { name: '儿童动画', keyword: '儿童动画 有声', catId: 6, metadataValues: '儿童动画' },
+                    { name: '家长课堂', keyword: '家长课堂 育儿', catId: 6, metadataValues: '家长课堂' },
+                    { name: '学习资料', keyword: '儿童学习 资料', catId: 6, metadataValues: '学习资料' },
+                    { name: '历史人文', keyword: '儿童 历史人文', catId: 6, metadataValues: '历史人文' },
+                    { name: '诗词国学', keyword: '儿童 诗词国学', catId: 6, metadataValues: '诗词国学' },
+                    { name: '科普百科', keyword: '儿童 科普百科', catId: 6, metadataValues: '科普百科' },
+                    { name: '英语学习', keyword: '儿童 英语', catId: 6, metadataValues: '英语学习' }
                 ]},
                 { name: '历史', keyword: '历史', catId: 9, children: [
                     { name: '全部', keyword: '历史', catId: 9 },
-                    { name: '历史小说', keyword: '历史小说 有声' },
-                    { name: '中国古代史', keyword: '中国古代史 有声' },
-                    { name: '中国近代史', keyword: '中国近代史 有声' },
-                    { name: '世界史', keyword: '世界历史 有声' },
-                    { name: '野史逸闻', keyword: '野史逸闻 有声' },
-                    { name: '人物传记', keyword: '人物传记 有声' }
+                    { name: '中国史', keyword: '中国历史 有声', catId: 9, metadataValues: '中国史' },
+                    { name: '世界史', keyword: '世界历史 有声', catId: 9, metadataValues: '世界史' },
+                    { name: '历史人物传记', keyword: '历史 人物传记', catId: 9, metadataValues: '历史人物传记' },
+                    { name: '逸闻趣史', keyword: '逸闻趣史 有声', catId: 9, metadataValues: '逸闻趣史' },
+                    { name: '文物考古', keyword: '文物考古 有声', catId: 9, metadataValues: '文物考古' },
+                    { name: '兵法史书', keyword: '兵法 史书', catId: 9, metadataValues: '兵法史书' },
+                    { name: '历史剧场', keyword: '历史剧场 有声', catId: 9, metadataValues: '历史剧场' },
+                    { name: '历史小说', keyword: '历史小说 有声', catId: 9, metadataValues: '历史小说' },
+                    { name: '文明史', keyword: '文明史 有声', catId: 9, metadataValues: '文明史' },
+                    { name: '军事历史', keyword: '军事历史 有声', catId: 9, metadataValues: '军事历史' }
                 ]},
                 { name: '个人成长', keyword: '个人成长', catId: 13, children: [
                     { name: '全部', keyword: '个人成长', catId: 13 },
-                    { name: '职场进阶', keyword: '职场进阶' },
-                    { name: '演讲口才', keyword: '演讲口才' },
-                    { name: '情商情绪', keyword: '情商情绪' },
-                    { name: '心灵素养', keyword: '心灵素养' },
-                    { name: '激励成长', keyword: '激励成长' },
-                    { name: '礼仪交际', keyword: '礼仪交际' }
+                    { name: '个人提升', keyword: '个人提升 有声', catId: 13, metadataValues: '个人提升' },
+                    { name: '职场进阶', keyword: '职场进阶 有声', catId: 13, metadataValues: '职场进阶' },
+                    { name: '考级考证', keyword: '考级考证 有声', catId: 13, metadataValues: '考级考证' }
                 ]},
                 { name: '商业财经', keyword: '商业财经', catId: 8, children: [
                     { name: '全部', keyword: '商业财经', catId: 8 },
-                    { name: '投资理财', keyword: '投资理财' },
-                    { name: '商业智慧', keyword: '商业智慧' },
-                    { name: '管理营销', keyword: '管理营销' },
-                    { name: '创业', keyword: '创业 有声' },
-                    { name: '股市', keyword: '股市 财经' }
+                    { name: '宏观经济', keyword: '宏观经济 财经', catId: 8, metadataValues: '宏观经济' },
+                    { name: '财经通识', keyword: '财经通识 有声', catId: 8, metadataValues: '财经通识' },
+                    { name: '经营管理', keyword: '经营管理 有声', catId: 8, metadataValues: '经营管理' },
+                    { name: '投资理财', keyword: '投资理财 有声', catId: 8, metadataValues: '投资理财' },
+                    { name: '商业前沿', keyword: '商业前沿 有声', catId: 8, metadataValues: '商业前沿' }
                 ]},
-                { name: '广播剧', keyword: '广播剧', catId: 15 },
-                { name: '人文', keyword: '人文', catId: 39, children: [
-                    { name: '全部', keyword: '人文', catId: 39 },
-                    { name: '心理百科', keyword: '心理百科' },
-                    { name: '科学科普', keyword: '科学科普' },
-                    { name: '纪实传奇', keyword: '纪实传奇' },
-                    { name: '哲学思想', keyword: '哲学思想' },
-                    { name: '文艺文化', keyword: '文艺文化' }
+                { name: '广播剧', keyword: '广播剧', catId: 15, children: [
+                    { name: '全部', keyword: '广播剧', catId: 15 },
+                    { name: '言情', keyword: '广播剧 言情', catId: 15, metadataValues: '言情' },
+                    { name: '悬疑', keyword: '广播剧 悬疑', catId: 15, metadataValues: '悬疑' },
+                    { name: '纯爱', keyword: '广播剧 纯爱', catId: 15, metadataValues: '纯爱' },
+                    { name: '游戏动漫', keyword: '广播剧 游戏动漫', catId: 15, metadataValues: '游戏动漫' },
+                    { name: '仙侠', keyword: '广播剧 仙侠', catId: 15, metadataValues: '仙侠' },
+                    { name: '架空', keyword: '广播剧 架空', catId: 15, metadataValues: '架空' },
+                    { name: '科幻', keyword: '广播剧 科幻', catId: 15, metadataValues: '科幻' },
+                    { name: '武侠', keyword: '广播剧 武侠', catId: 15, metadataValues: '武侠' },
+                    { name: '奇幻', keyword: '广播剧 奇幻', catId: 15, metadataValues: '奇幻' },
+                    { name: '都市', keyword: '广播剧 都市', catId: 15, metadataValues: '都市' },
+                    { name: '文学名著', keyword: '广播剧 文学名著', catId: 15, metadataValues: '文学名著' },
+                    { name: '娱乐花絮', keyword: '广播剧 娱乐花絮', catId: 15, metadataValues: '娱乐花絮' }
                 ]},
-                { name: '文学', keyword: '文学 有声书', children: [
-                    { name: '全部', keyword: '文学 有声书' },
-                    { name: '影视文学', keyword: '影视文学 有声' },
-                    { name: '名家名著', keyword: '名家名著 有声书' },
-                    { name: '推理小说', keyword: '推理小说 有声' },
-                    { name: '古典文学', keyword: '古典文学 有声' },
-                    { name: '探险小说', keyword: '探险小说 有声' },
-                    { name: '外国文学', keyword: '外国文学 有声' }
+                /* 官方「人文国学」真实 catId 是 1002（原先写的 39 在接口上完全无效，恒返回空，
+                   只能靠关键词搜索兜底，导致各子分类内容漂移） */
+                { name: '人文国学', keyword: '人文', catId: 1002, children: [
+                    { name: '全部', keyword: '人文 国学', catId: 1002 },
+                    { name: '文学', keyword: '文学 有声', catId: 1002, metadataValues: '文学' },
+                    { name: '国学', keyword: '国学 有声', catId: 1002, metadataValues: '国学' },
+                    { name: '文化人物传记', keyword: '文化人物传记 有声', catId: 1002, metadataValues: '文化人物传记' },
+                    { name: '文化艺术', keyword: '文化艺术 有声', catId: 1002, metadataValues: '文化艺术' },
+                    { name: '民间文学', keyword: '民间文学 有声', catId: 1002, metadataValues: '民间文学' },
+                    { name: '社会科学', keyword: '社会科学 有声', catId: 1002, metadataValues: '社会科学' },
+                    { name: '哲学宗教', keyword: '哲学宗教 有声', catId: 1002, metadataValues: '哲学宗教' },
+                    /* 这两项官方没有元数据维度，走关键词搜索 */
+                    { name: '百家讲坛', keyword: '百家讲坛' },
+                    { name: '志怪神话', keyword: '志怪神话' }
                 ]},
-                { name: '健康', keyword: '健康养生', catId: 7, children: [
-                    { name: '全部', keyword: '健康养生', catId: 7 },
-                    { name: '中医养生', keyword: '中医养生' },
-                    { name: '健康课堂', keyword: '健康课堂' },
-                    { name: '疾病预防', keyword: '疾病预防' },
-                    { name: '饮食药膳', keyword: '饮食药膳' },
-                    { name: '女性养生', keyword: '女性养生' }
+                /* 官方「有声图书」真实 catId 是 1001 —— 这才是出版书频道。
+                   原先指向 catId=3（网文有声书），所以点进来全是网络小说而非出版物 */
+                { name: '图书', keyword: '有声图书', catId: 1001, children: [
+                    { name: '全部', keyword: '有声图书', catId: 1001 },
+                    { name: '出版小说', keyword: '出版小说 有声', catId: 1001, metadataValues: '出版小说' },
+                    { name: '人物传记', keyword: '人物传记 有声', catId: 1001, metadataValues: '人物传记' },
+                    { name: '职场商战', keyword: '职场商战 小说', catId: 1001, metadataValues: '职场商战' },
+                    { name: '社会小说', keyword: '社会小说 有声', catId: 1001, metadataValues: '社会小说' },
+                    { name: '影视原著', keyword: '影视原著 有声', catId: 1001, metadataValues: '影视原著' },
+                    { name: '家庭伦理', keyword: '家庭伦理 小说', catId: 1001, metadataValues: '家庭伦理' },
+                    { name: '豆瓣top250', keyword: '豆瓣top250 图书', catId: 1001, metadataValues: '豆瓣top250' },
+                    { name: '名家名作', keyword: '名家名作 有声', catId: 1001, metadataValues: '名家名作' }
                 ]},
-                { name: '情感生活', keyword: '情感', catId: 10, children: [
-                    { name: '全部', keyword: '情感', catId: 10 },
-                    { name: '情感杂谈', keyword: '情感杂谈' },
-                    { name: '生活窍门', keyword: '生活窍门' },
-                    { name: '美食天地', keyword: '美食天地' },
-                    { name: '时尚美容', keyword: '时尚美容' }
+                /* 官方「健康」真实 catId 是 1062（原先的 7 无效） */
+                { name: '健康', keyword: '健康养生', catId: 1062, children: [
+                    { name: '全部', keyword: '健康养生', catId: 1062 },
+                    { name: '中医', keyword: '中医 养生', catId: 1062, metadataValues: '中医' },
+                    { name: '健康知识', keyword: '健康知识 课堂', catId: 1062, metadataValues: '健康知识' },
+                    { name: '营养健康', keyword: '营养 食疗', catId: 1062, metadataValues: '营养健康' },
+                    { name: '健康管理', keyword: '健康管理 有声', catId: 1062, metadataValues: '健康管理' },
+                    { name: '生命故事', keyword: '生命故事 有声', catId: 1062, metadataValues: '生命故事' }
                 ]},
-                { name: '曲艺戏曲', keyword: '戏曲', catId: 16, children: [
-                    { name: '全部', keyword: '戏曲', catId: 16 },
-                    { name: '京剧', keyword: '京剧' },
-                    { name: '豫剧', keyword: '豫剧' },
-                    { name: '黄梅戏', keyword: '黄梅戏' },
-                    { name: '越剧', keyword: '越剧' },
-                    { name: '昆曲', keyword: '昆曲' },
-                    { name: '地方戏', keyword: '地方戏' }
+                /* 官方「生活」真实 catId 是 1006（原先的 10 无效） */
+                { name: '情感生活', keyword: '情感 生活', catId: 1006, children: [
+                    { name: '全部', keyword: '情感 生活', catId: 1006 },
+                    { name: '情感思维', keyword: '情感 有声', catId: 1006, metadataValues: '情感思维' },
+                    { name: '夜听美文', keyword: '夜听 美文', catId: 1006, metadataValues: '夜听美文' },
+                    { name: '故事播客', keyword: '故事 播客', catId: 1006, metadataValues: '故事播客' },
+                    { name: '生活闲聊', keyword: '生活闲聊 有声', catId: 1006, metadataValues: '生活闲聊' },
+                    { name: '心理疗愈', keyword: '心理 疗愈', catId: 1006, metadataValues: '心理疗愈' },
+                    { name: '旅行', keyword: '旅行 游记', catId: 1006, metadataValues: '旅行' }
                 ]},
-                { name: '娱乐', keyword: '娱乐', catId: 4 },
-                { name: '音乐', keyword: '音乐', catId: 2 },
-                { name: '外语', keyword: '英语', catId: 38 },
-                { name: '二次元', keyword: '二次元', catId: 18 },
-                { name: '广播电台', keyword: '电台', catId: 5 },
-                { name: '影视原声', keyword: '电影解说', catId: 23 }
+                /* 官方没有独立戏曲分类，戏曲是「相声评书 catId=12」下的子标签（原 catId=16 无效） */
+                { name: '曲艺戏曲', keyword: '戏曲', catId: 12, metadataValues: '戏曲', children: [
+                    { name: '全部', keyword: '戏曲 有声', catId: 12, metadataValues: '戏曲' },
+                    { name: '京剧', keyword: '京剧 名段' },
+                    { name: '豫剧', keyword: '豫剧 名段' },
+                    { name: '黄梅戏', keyword: '黄梅戏 名段' },
+                    { name: '越剧', keyword: '越剧 名段' },
+                    { name: '昆曲', keyword: '昆曲 名段' },
+                    { name: '地方戏', keyword: '地方戏 戏曲' }
+                ]},
+                { name: '娱乐', keyword: '娱乐', catId: 4, children: [
+                    { name: '全部', keyword: '娱乐 有声', catId: 4 },
+                    { name: '脱口秀', keyword: '脱口秀 有声', catId: 4, metadataValues: '脱口秀' },
+                    { name: '情景喜剧', keyword: '情景喜剧 有声', catId: 4, metadataValues: '情景喜剧' },
+                    { name: '笑话', keyword: '笑话 段子', catId: 4, metadataValues: '笑话' },
+                    { name: '段子', keyword: '段子 搞笑', catId: 4, metadataValues: '段子' },
+                    { name: '娱乐圈', keyword: '娱乐圈 八卦', catId: 4, metadataValues: '娱乐圈' },
+                    { name: '娱乐播客', keyword: '娱乐 播客', catId: 4, metadataValues: '娱乐播客' },
+                    { name: '影视', keyword: '影视 解说', catId: 4, metadataValues: '影视' }
+                ]},
+                /* 官方音乐分类(2)只有 3 个维度且内容偏助眠/疗愈，流派细分靠关键词搜索补齐 */
+                { name: '音乐', keyword: '音乐', catId: 2, children: [
+                    { name: '全部', keyword: '音乐 有声', catId: 2 },
+                    { name: '主播音乐节目', keyword: '音乐 节目', catId: 2, metadataValues: '主播音乐节目' },
+                    { name: '课程引导', keyword: '音乐 课程', catId: 2, metadataValues: '课程引导' },
+                    { name: '音乐音效', keyword: '音乐 音效', catId: 2, metadataValues: '音乐音效' },
+                    { name: '纯音乐', keyword: '钢琴 纯音乐' },
+                    { name: '古风音乐', keyword: '古风音乐' },
+                    { name: '流行音乐', keyword: '流行音乐' },
+                    { name: '怀旧金曲', keyword: '经典老歌 怀旧' },
+                    { name: '民谣', keyword: '民谣' },
+                    { name: '助眠减压', keyword: '助眠音乐' }
+                ]},
+                /* 官方「外语」真实 catId 是 5（原先的 38 无效） */
+                { name: '外语', keyword: '英语', catId: 5, children: [
+                    { name: '全部', keyword: '英语 外语', catId: 5 },
+                    { name: '口语', keyword: '英语 口语', catId: 5, metadataValues: '口语' },
+                    { name: '听力', keyword: '英语 听力', catId: 5, metadataValues: '听力' },
+                    { name: '外语读物', keyword: '外语 读物', catId: 5, metadataValues: '外语读物' },
+                    { name: '单词语法', keyword: '英语 单词 语法', catId: 5, metadataValues: '单词语法' },
+                    { name: '外语教材', keyword: '外语 教材', catId: 5, metadataValues: '外语教材' },
+                    { name: '小语种', keyword: '小语种 学习', catId: 5, metadataValues: '小语种' },
+                    { name: '外语考试', keyword: '英语 考试', catId: 5, metadataValues: '外语考试' }
+                ]},
+                /* 官方无 catId=18，二次元是「娱乐 catId=4」下的子标签 */
+                { name: '二次元', keyword: '二次元', catId: 4, metadataValues: '二次元' },
+                /* 官方电台是独立频道 /radio/，没有分类 catId；原先写的 5 其实是「外语」分类，会串内容 */
+                { name: '广播电台', keyword: '电台' },
+                /* 官方无 catId=23，影视归属「娱乐 catId=4」 */
+                { name: '影视原声', keyword: '电影解说', catId: 4, metadataValues: '影视' }
             ],
             kuwo: [
                 { name: '热门推荐', keyword: '有声书', catId: 1, children: [
@@ -6107,7 +6597,317 @@
                 });
             } catch (e) {}
         }
+        /* ================= 离线音频缓存（IndexedDB） =================
+           整集音频存成本地 ArrayBuffer：弱网 / 断网 / 锁屏时也能连播下一集。
+           音频 CDN 需返回 CORS 头才能抓取；不支持或抓取失败时静默降级，
+           只退回「<audio preload> 缓冲」，不影响在线播放。 */
+        var AudioCache = (function () {
+            var DB_NAME = 'bbts_audio_cache_v1';
+            var STORE = 'audios';
+            var VERSION = 1;
+            var _db = null;
+            var _opening = null;
+            var _dead = false;
+            var supported = (function () {
+                try { return typeof indexedDB !== 'undefined' && !!indexedDB; } catch (e) { return false; }
+            })();
+
+            function open() {
+                if (!supported || _dead) return Promise.reject(new Error('idb unavailable'));
+                if (_db) return Promise.resolve(_db);
+                if (_opening) return _opening;
+                _opening = new Promise(function (resolve, reject) {
+                    var req;
+                    try { req = indexedDB.open(DB_NAME, VERSION); }
+                    catch (e) { _dead = true; return reject(e); }
+                    req.onupgradeneeded = function () {
+                        var db = req.result;
+                        if (!db.objectStoreNames.contains(STORE)) {
+                            var os = db.createObjectStore(STORE, { keyPath: 'key' });
+                            try { os.createIndex('time', 'time', { unique: false }); } catch (eI) {}
+                        }
+                    };
+                    req.onsuccess = function () { _db = req.result; resolve(_db); };
+                    req.onerror = function () { _dead = true; reject(req.error || new Error('idb open error')); };
+                    req.onblocked = function () { _dead = true; reject(new Error('idb blocked')); };
+                });
+                return _opening;
+            }
+
+            function _req(request) {
+                return new Promise(function (resolve, reject) {
+                    request.onsuccess = function () { resolve(request.result); };
+                    request.onerror = function () { reject(request.error || new Error('idb request error')); };
+                });
+            }
+            function _store(mode) {
+                return open().then(function (db) {
+                    return db.transaction(STORE, mode).objectStore(STORE);
+                });
+            }
+
+            function get(key) {
+                if (!supported || !key) return Promise.resolve(null);
+                return _store('readonly').then(function (s) {
+                    return _req(s.get(key));
+                }).then(function (rec) {
+                    return rec || null;
+                }).catch(function () { return null; });
+            }
+            function put(rec) {
+                if (!supported || !rec || !rec.key) return Promise.resolve(false);
+                return _store('readwrite').then(function (s) {
+                    return _req(s.put(rec));
+                }).then(function () { return true; }).catch(function () { return false; });
+            }
+            function remove(key) {
+                if (!supported || !key) return Promise.resolve(false);
+                return _store('readwrite').then(function (s) {
+                    return _req(s['delete'](key));
+                }).then(function () { return true; }).catch(function () { return false; });
+            }
+            /* 更新 LRU 时间戳 */
+            function touch(key) {
+                if (!supported || !key) return Promise.resolve(false);
+                return get(key).then(function (rec) {
+                    if (!rec) return false;
+                    rec.time = Date.now();
+                    return put(rec);
+                }).catch(function () { return false; });
+            }
+            function all() {
+                if (!supported) return Promise.resolve([]);
+                return _store('readonly').then(function (s) {
+                    return _req(s.getAll());
+                }).then(function (list) { return list || []; }).catch(function () { return []; });
+            }
+            function stats() {
+                return all().then(function (list) {
+                    var bytes = 0;
+                    for (var i = 0; i < list.length; i++) bytes += (list[i].size || 0);
+                    return { items: list.length, bytes: bytes, list: list };
+                });
+            }
+            /* 超出容量/条数上限时按最旧优先清理，keep 里的键保留（当前集与预加载窗口） */
+            function prune(opts) {
+                opts = opts || {};
+                var maxBytes = opts.maxBytes || 0;
+                var maxItems = opts.maxItems || 0;
+                var keep = opts.keep || [];
+                return stats().then(function (st) {
+                    var list = st.list.slice();
+                    if (!list.length) return 0;
+                    if (!(maxItems && list.length > maxItems) && !(maxBytes && st.bytes > maxBytes)) return 0;
+                    list.sort(function (a, b) { return (a.time || 0) - (b.time || 0); }); /* 旧 → 新 */
+                    var removed = 0, bytes = st.bytes, items = list.length;
+                    for (var i = 0; i < list.length; i++) {
+                        if (maxBytes && bytes <= maxBytes) { if (!(maxItems && items > maxItems)) break; }
+                        if (maxItems && items <= maxItems) { if (!(maxBytes && bytes > maxBytes)) break; }
+                        if (keep.indexOf(list[i].key) >= 0) continue;
+                        remove(list[i].key);
+                        bytes -= (list[i].size || 0);
+                        items--;
+                        removed++;
+                    }
+                    return removed;
+                }).catch(function () { return 0; });
+            }
+            function clearAll() {
+                if (!supported) return Promise.resolve(false);
+                return _store('readwrite').then(function (s) {
+                    return _req(s.clear());
+                }).then(function () { return true; }).catch(function () { return false; });
+            }
+            return {
+                supported: supported,
+                get: get, put: put, remove: remove, touch: touch,
+                stats: stats, prune: prune, clearAll: clearAll
+            };
+        })();
+
+        /* ---------- 预加载配置 ---------- */
+        var LS_PRELOAD = 'bbts_preload_v1';
+        var LS_PRELOAD_N = 'bbts_preload_n_v1';
+        var PRELOAD_MIN = 5;                          /* 至少预加载 5 集 */
+        var PRELOAD_MAX_BYTES = 400 * 1024 * 1024;    /* 缓存上限 400MB */
+        var PRELOAD_MAX_ITEMS = 40;                   /* 最多留 40 集 */
+        function getPreloadEnabled() {
+            try { return localStorage.getItem(LS_PRELOAD) !== '0'; } catch (e) { return true; } /* 默认开启 */
+        }
+        function setPreloadEnabled(on) {
+            try { localStorage.setItem(LS_PRELOAD, on ? '1' : '0'); } catch (e) {}
+        }
+        function preloadCount() {
+            try {
+                var v = parseInt(localStorage.getItem(LS_PRELOAD_N), 10);
+                if (v > 0) return Math.max(PRELOAD_MIN, v); /* 不低于 5 集 */
+            } catch (e) {}
+            return PRELOAD_MIN;
+        }
+        /* 缓存键：站源 + 曲目 id（同一集不同源视为不同文件） */
+        function preloadCacheKey(track) {
+            if (!track) return '';
+            var sid = track.source || state.player.sourceId || '';
+            var tid = idToStr(track.id || (track.raw && track.raw.trackId) || '');
+            if (!tid) return '';
+            return (sid || 'unknown') + ':' + tid;
+        }
+        function fmtBytes(n) {
+            n = Number(n) || 0;
+            if (n >= 1024 * 1024 * 1024) return (n / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+            if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
+            if (n >= 1024) return (n / 1024).toFixed(0) + ' KB';
+            return n + ' B';
+        }
+
+        /* 取播放地址：复用已解析结果，过期则重新解析 */
+        function resolveTrackUrl(track) {
+            if (!track) return Promise.resolve(null);
+            var expired = track.playUrl && track._playUrlTime && (Date.now() - track._playUrlTime > 3 * 3600 * 1000);
+            if (track.playUrl && !expired) return Promise.resolve(toHttps(track.playUrl));
+            if (expired) { track.playUrl = null; track._playUrlTime = 0; }
+            var adp = playerAdapter();
+            if (!adp || !adp.resolvePlayUrl) return Promise.resolve(null);
+            return adp.resolvePlayUrl(track).then(function (url) {
+                if (!url) return null;
+                track.playUrl = url;
+                track._playUrlTime = Date.now();
+                return toHttps(url);
+            }).catch(function () { return null; });
+        }
+        function fetchAudioBuffer(url) {
+            if (typeof fetch !== 'function') return Promise.reject(new Error('no fetch'));
+            return fetch(url, { method: 'GET', mode: 'cors', credentials: 'omit' }).then(function (res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.arrayBuffer();
+            });
+        }
+
+        /* ---------- 单集缓存下载 ---------- */
+        var _preloadInFlight = {};
+        var _preloadFail = {};
+        function cacheTrackAudio(track, opts) {
+            opts = opts || {};
+            if (!track || !AudioCache.supported || !getPreloadEnabled()) return Promise.resolve(false);
+            var key = preloadCacheKey(track);
+            if (!key) return Promise.resolve(false);
+            if (_preloadInFlight[key]) return _preloadInFlight[key];
+            if ((_preloadFail[key] || 0) >= 3) return Promise.resolve(false); /* 反复失败的集不再重试 */
+
+            var p = AudioCache.get(key).then(function (rec) {
+                if (rec && rec.data && rec.data.byteLength) return { ok: true, existed: true };
+                var urlTask = opts.url ? Promise.resolve(toHttps(opts.url)) : resolveTrackUrl(track);
+                return urlTask.then(function (url) {
+                    if (!url) return { ok: false, reason: 'no-url' };
+                    return fetchAudioBuffer(url).then(function (buf) {
+                        if (!buf || !buf.byteLength) return { ok: false, reason: 'empty' };
+                        return AudioCache.put({
+                            key: key,
+                            data: buf,
+                            size: buf.byteLength,
+                            mime: 'audio/mpeg',
+                            time: Date.now(),
+                            title: track.title || ''
+                        }).then(function (done) {
+                            return done ? { ok: true, size: buf.byteLength } : { ok: false, reason: 'put-fail' };
+                        });
+                    });
+                });
+            }).then(function (r) {
+                if (!r || !r.ok) {
+                    _preloadFail[key] = (_preloadFail[key] || 0) + 1;
+                    delete _preloadInFlight[key];
+                    return false;
+                }
+                delete _preloadInFlight[key];
+                delete _preloadFail[key];
+                return true;
+            }).catch(function () {
+                _preloadFail[key] = (_preloadFail[key] || 0) + 1;
+                delete _preloadInFlight[key];
+                return false;
+            });
+            _preloadInFlight[key] = p;
+            return p;
+        }
+
+        /* ---------- 预加载队列：当前集之后至少 N 集 ---------- */
+        var _preloadRunning = false;
+        function runPreloadQueue() {
+            if (!getPreloadEnabled() || !AudioCache.supported) return;
+            if (_preloadRunning) return;
+            _preloadRunning = true;
+            var tracks = state.player.tracks || [];
+            var want = preloadCount();
+            var queue = [];
+            for (var i = state.player.currentIndex + 1; i < tracks.length && queue.length < want; i++) {
+                if (tracks[i]) queue.push(tracks[i]);
+            }
+            /* 列表不足 N 集：后台补拉更多曲目，下次调度再补 */
+            if (queue.length < want) {
+                try { autoLoadMoreTracksIfNeeded(); } catch (eA) {}
+            }
+            var idx = 0;
+            (function step() {
+                if (idx >= queue.length) { done(); return; }
+                var t = queue[idx++];
+                cacheTrackAudio(t).then(step, step); /* 串行下载，避免抢占当前播放带宽 */
+            })();
+            function done() {
+                _preloadRunning = false;
+                try {
+                    var keep = [];
+                    var tr = state.player.tracks || [];
+                    var end = Math.min(tr.length, state.player.currentIndex + want + 1);
+                    for (var k = Math.max(0, state.player.currentIndex); k < end; k++) {
+                        var ck = preloadCacheKey(tr[k]);
+                        if (ck) keep.push(ck);
+                    }
+                    AudioCache.prune({ maxBytes: PRELOAD_MAX_BYTES, maxItems: PRELOAD_MAX_ITEMS, keep: keep });
+                } catch (ePr) {}
+            }
+        }
+
+        /* blob URL 回收：切歌时必须释放，否则内存持续增长 */
+        var _blobUrl = null;
+        function revokeBlobUrl() {
+            if (_blobUrl) {
+                try { URL.revokeObjectURL(_blobUrl); } catch (e) {}
+                _blobUrl = null;
+            }
+        }
+        /* 优先播本地缓存（弱网/断网也能连播），未命中则在线播并后台缓存 */
+        function playWithCache(track, url, token) {
+            if (!getPreloadEnabled() || !AudioCache.supported) { playAudio(url); return; }
+            var key = preloadCacheKey(track);
+            if (!key) { playAudio(url); return; }
+            AudioCache.get(key).then(function (rec) {
+                if (token != null && token !== state.playToken) return; /* 已切集，丢弃 */
+                if (rec && rec.data && rec.data.byteLength) {
+                    try {
+                        revokeBlobUrl();
+                        _blobUrl = URL.createObjectURL(new Blob([rec.data], { type: rec.mime || 'audio/mpeg' }));
+                        state.player._fromCache = true;
+                        playAudio(_blobUrl);
+                        try { AudioCache.touch(key); } catch (eT) {}
+                        return;
+                    } catch (e) { revokeBlobUrl(); }
+                }
+                state.player._fromCache = false;
+                playAudio(url);
+                try { cacheTrackAudio(track, { url: url }); } catch (eC) {}
+            }).catch(function () {
+                state.player._fromCache = false;
+                playAudio(url);
+            });
+        }
+
         function preloadNextTrack() {
+            /* 1) 本地缓存队列（离线/弱网续播的关键）；2) 浏览器缓冲作为降级与双保险 */
+            try { runPreloadQueue(); } catch (eQ) {}
+            try { legacyPreloadNext(); } catch (eL) {}
+        }
+        function legacyPreloadNext() {
             try {
                 var tracks = state.player.tracks || [];
                 var nidx = state.player.currentIndex + 1;
@@ -6412,7 +7212,15 @@
             var a = document.getElementById('playSortBtn');
             var b = document.getElementById('detailSortBtn');
             if (a) a.textContent = label;
-            if (b) b.textContent = label;
+            if (b) {
+                var txt = b.querySelector('.sort-txt');
+                if (txt) {
+                    b.classList.toggle('sort-desc', state.trackSort !== 'asc');
+                    txt.textContent = label;
+                } else {
+                    b.textContent = label;
+                }
+            }
         }
 
         function currentCategories() {
@@ -6532,18 +7340,20 @@
             if (uid) parts.push('uid=' + uid);
             return parts.length ? parts.join('; ') : ck;
         }
-        /* 规范化 Cookie：合并内置通用字段 + 用户关键登录字段 */
+        /* 规范化 Cookie：完整网页 Cookie 原样保留；仅纯 token 时补字段 */
         function _normalizeXmlyCookie(ck) {
             ck = (ck || '').trim();
             if (!ck) return '';
-            /* 去掉换行与多余空白 */
-            ck = ck.replace(/[\r\n]+/g, '; ').replace(/;\s*;/g, '; ').trim();
+            /* 去掉换行、中文逗号、全角分号与多余空白 */
+            ck = ck.replace(/[\r\n]+/g, '; ')
+                .replace(/[，、]/g, '; ')
+                .replace(/；/g, '; ')
+                .replace(/;\s*;/g, '; ').trim();
             if (!ck) return '';
             /* 纯 token 值（无 key=） */
             if (ck.indexOf('=') < 0 && ck.length > 20 && ck.indexOf(' ') < 0) {
                 ck = '1&_token=' + ck;
             }
-            /* 仅贴了 1&_token=xxx 或少量关键字段时，合并内置通用字段 */
             var userMap = _parseCookieToMap(ck);
             /* 兼容其它 token 字段名 */
             if (!userMap['1&_token']) {
@@ -6556,7 +7366,16 @@
                 if (segs[0] && /^\d{5,}$/.test(segs[0])) userMap['uid'] = segs[0];
             }
             if (userMap['1&uid'] && !userMap['uid']) userMap['uid'] = userMap['1&uid'];
-            /* 用户字段覆盖默认字段 */
+
+            /* 完整网页 Cookie（含 crystal/wfp/HWWAF 等）→ 原样返回，不注入移动端假字段 */
+            var rich = Object.keys(userMap).length >= 4 ||
+                userMap['crystal'] || userMap['wfp'] || userMap['HWWAFSESID'] ||
+                userMap['1_l_flag'] || userMap['web_login'] || userMap['impl'];
+            if (rich && userMap['1&_token']) {
+                return _cookieMapToString(userMap);
+            }
+
+            /* 仅 token/少量字段时，合并内置通用字段（兼容旧用法） */
             var merged = {};
             var dk = Object.keys(XMLY_CK_DEFAULTS);
             for (var i = 0; i < dk.length; i++) merged[dk[i]] = XMLY_CK_DEFAULTS[dk[i]];
@@ -7201,6 +8020,340 @@
             }
         }
 
+
+        /* ========== 喜马拉雅 mpay 付费精品（个人成长等）播放地址 ========== */
+        /* RC4 解密 ep 参数，密钥固定 xkt3a41psizxrh9l */
+        function _xmRc4(key, data) {
+            var s = [], i, j = 0, x, res = [];
+            for (i = 0; i < 256; i++) s[i] = i;
+            for (i = 0; i < 256; i++) {
+                j = (j + s[i] + key.charCodeAt(i % key.length)) & 255;
+                x = s[i]; s[i] = s[j]; s[j] = x;
+            }
+            i = 0; j = 0;
+            for (var y = 0; y < data.length; y++) {
+                i = (i + 1) & 255;
+                j = (j + s[i]) & 255;
+                x = s[i]; s[i] = s[j]; s[j] = x;
+                res.push(String.fromCharCode(data.charCodeAt(y) ^ s[(s[i] + s[j]) & 255]));
+            }
+            return res.join('');
+        }
+        function _xmB64DecodeToStr(b64) {
+            try {
+                var s = String(b64 || '').replace(/-/g, '+').replace(/_/g, '/');
+                while (s.length % 4) s += '=';
+                if (typeof atob === 'function') return atob(s);
+                /* fallback */
+                var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+                var str = '', buf = 0, bits = 0;
+                for (var i = 0; i < s.length; i++) {
+                    var c = chars.indexOf(s.charAt(i));
+                    if (c < 0) continue;
+                    buf = (buf << 6) | c;
+                    bits += 6;
+                    if (bits >= 8) {
+                        bits -= 8;
+                        str += String.fromCharCode((buf >> bits) & 0xff);
+                    }
+                }
+                return str;
+            } catch (e) { return ''; }
+        }
+        /* 解密 ep → sign / token / timestamp（兼容 3 段或 4 段） */
+        function _xmDecryptPayEp(ep) {
+            if (!ep) return null;
+            try {
+                var raw = _xmB64DecodeToStr(ep);
+                if (!raw) return null;
+                var plain = _xmRc4('xkt3a41psizxrh9l', raw);
+                var parts = String(plain).split('-');
+                /* 官方常见：buy_key-sign-token-timestamp 或 sign-token-timestamp */
+                if (parts.length >= 4) {
+                    return { sign: parts[1], token: parts[2], timestamp: parts[3], buyKeyFromEp: parts[0] };
+                }
+                if (parts.length >= 3) {
+                    return { sign: parts[0], token: parts[1], timestamp: parts[2] };
+                }
+                return null;
+            } catch (e) { return null; }
+        }
+        /* 用 seed + fileId 还原下载路径 */
+        function _xmDecryptPayFilename(fileId, seed) {
+            if (!fileId || seed == null) return '';
+            try {
+                var key = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ/\\:._-1234567890';
+                var cgstr = '';
+                var sd = Number(seed);
+                for (var n = 0; n < key.length; n++) {
+                    sd = (211 * sd + 30031) % 65536;
+                    var r = Math.floor(sd / 65536 * key.length);
+                    cgstr += key.charAt(r);
+                    key = key.substring(0, r) + key.substring(r + 1);
+                }
+                var parts = String(fileId).split('*');
+                var filename = '';
+                for (var i = 0; i < parts.length; i++) {
+                    if (parts[i] === '') continue;
+                    var idx = parseInt(parts[i], 10);
+                    if (!isNaN(idx) && idx >= 0 && idx < cgstr.length) filename += cgstr.charAt(idx);
+                }
+                if (filename && filename.charAt(0) !== '/') filename = '/' + filename;
+                return filename;
+            } catch (e) { return ''; }
+        }
+        function _xmBuildMpayUrl(info) {
+            if (!info || !info.fileId || info.seed == null || !info.ep) return '';
+            var filename = _xmDecryptPayFilename(info.fileId, info.seed);
+            if (!filename) return '';
+            var params = _xmDecryptPayEp(info.ep);
+            if (!params || !params.sign) return '';
+            var domain = String(info.domain || 'https://audiopay.cos.xmcdn.com').replace(/^http:/, 'https:');
+            if (domain.indexOf('audio.pay.xmcdn.com') >= 0) domain = 'https://vod.xmcdn.com';
+            var apiVer = info.apiVersion || '1.0.0';
+            var buyKey = info.buyKey || params.buyKeyFromEp || '617574686f72697a6564';
+            var q = [
+                'sign=' + encodeURIComponent(params.sign),
+                'buy_key=' + encodeURIComponent(buyKey),
+                'token=' + encodeURIComponent(params.token || ''),
+                'timestamp=' + encodeURIComponent(params.timestamp || ''),
+                'duration=' + encodeURIComponent(info.duration != null ? info.duration : '')
+            ].join('&');
+            return domain + '/download/' + apiVer + filename + '?' + q;
+        }
+        function _xmIsPaidLikeTrack(track) {
+            if (!track) return false;
+            if (track.contentPaid === true || track.isVipContent === true) return true;
+            if (track.isPaid === true && track.isFree === false) return true;
+            var raw = track.raw || {};
+            if (xmRawIsPaidContent(raw)) return true;
+            if (raw.isPaid === true || raw.is_paid === true || raw.isPaid === 1 || raw.is_paid === 1) return true;
+            return false;
+        }
+        /* mpay Cookie：完整网页 Cookie 原样使用（含 crystal/wfp/HWWAF 等风控字段）
+         * 只有用户只贴了纯 token 时，才补成 1&_token=...
+         */
+        function _xmMpayCookie() {
+            var raw = (state.xmlyCk || '').trim();
+            if (!raw) return '';
+            raw = raw.replace(/[\r\n]+/g, '; ')
+                .replace(/[，、]/g, '; ')
+                .replace(/；/g, '; ')
+                .replace(/;\s*;/g, '; ').trim();
+            /* 纯 token 值 */
+            if (raw.indexOf('=') < 0 && raw.length > 20 && raw.indexOf(' ') < 0) {
+                return '1&_token=' + raw;
+            }
+            var map = _parseCookieToMap(raw);
+            var hasToken = !!(map['1&_token'] || map['1&token'] || map['access_token'] || map['_token'] || map['token']);
+            /* 完整 Cookie（字段较多或含网页风控字段）→ 原样规范化，不删字段 */
+            var rich = Object.keys(map).length >= 4 ||
+                map['crystal'] || map['wfp'] || map['HWWAFSESID'] || map['1_l_flag'] ||
+                map['web_login'] || map['impl'];
+            if (rich && hasToken) {
+                /* 确保 1&_token 字段名统一 */
+                if (!map['1&_token']) {
+                    map['1&_token'] = map['1&token'] || map['access_token'] || map['_token'] || map['token'];
+                }
+                if (!map['uid'] && map['1&_token']) {
+                    var segs = String(map['1&_token']).split('&');
+                    if (segs[0] && /^\d{5,}$/.test(segs[0])) map['uid'] = segs[0];
+                }
+                return _cookieMapToString(map);
+            }
+            /* 精简场景：只有 token/uid */
+            var token = map['1&_token'] || map['1&token'] || map['access_token'] || map['_token'] || map['token'] || '';
+            if (!token && /^1&_token=/i.test(raw)) {
+                token = raw.replace(/^1&_token=/i, '').split(';')[0].trim();
+            }
+            var uid = map['uid'] || map['1&uid'] || '';
+            if (!uid && token) {
+                var segs2 = String(token).split('&');
+                if (segs2[0] && /^\d{5,}$/.test(segs2[0])) uid = segs2[0];
+            }
+            var out = [];
+            if (token) out.push('1&_token=' + token);
+            if (uid) out.push('uid=' + uid);
+            if (map['1&remember_me']) out.push('1&remember_me=' + map['1&remember_me']);
+            if (map['login_type']) out.push('login_type=' + map['login_type']);
+            if (map['device_id']) out.push('device_id=' + map['device_id']);
+            return out.length ? out.join('; ') : raw;
+        }
+        /* mpay.ximalaya.com/mobile/track/pay/{trackId} 获取付费精品/VIP畅听播放地址
+         * ret=999「账号异常」多为 Cookie/设备指纹与官方不一致触发风控。
+         * 策略：精简 Cookie + 网页 UA + 仅 Cookie 鉴权（不把 token 塞进 URL 防双重编码）
+         */
+        function _xmTryMpayPayUrl(trackId) {
+            var tid = String(trackId || '');
+            if (!tid) return Promise.resolve('');
+            var tsMs = Date.now();
+            var tsSec = Math.floor(tsMs / 1000);
+            var ck = _xmMpayCookie();
+            var authToken = _xmAuthTokenParam();
+            /* 部分环境 Cookie 头会被吞，备一条带 token 的 URL；优先不带，避免触发 999 */
+            var tokenQ = authToken ? ('&' + encodeURIComponent('1&_token') + '=' + encodeURIComponent(authToken)) : '';
+            var baseUrls = [
+                'https://mpay.ximalaya.com/mobile/track/pay/' + tid + '/' + tsSec + '?device=pc&isBackend=true&_=' + tsMs,
+                'https://mpay.ximalaya.com/mobile/track/pay/' + tid + '?device=pc&isBackend=true&_=' + tsMs,
+                'https://mpay.ximalaya.com/mobile/track/pay/' + tid + '/' + tsSec + '?device=www2&isBackend=true&_=' + tsMs,
+                'https://mpay.ximalaya.com/mobile/track/pay/' + tid + '/' + tsMs + '?device=pc&isBackend=true&_=' + tsMs
+            ];
+            /* 第一轮：纯 Cookie；第二轮：Cookie + URL token */
+            var urls = baseUrls.concat(baseUrls.map(function (u) { return u + tokenQ; }));
+
+            function parseMpayBody(res, tag) {
+                if (!res) { _xmDebugLog.push(tag + ': 空响应'); return { url: '', ret: -1, msg: '空' }; }
+                var d = res;
+                if (res.data && typeof res.data === 'object' && (res.data.fileId || res.data.ep || res.data.ret != null)) d = res.data;
+                if (typeof d === 'string') {
+                    try { d = JSON.parse(d); } catch (e) { _xmDebugLog.push(tag + ': 非JSON'); return { url: '', ret: -1, msg: '非JSON' }; }
+                }
+                var ret = (d.ret != null ? d.ret : (res.ret != null ? res.ret : 0));
+                var msg = d.msg || res.msg || '';
+                if (Number(ret) === 999) {
+                    _xmDebugLog.push(tag + ': 风控999 账号异常 ' + msg);
+                    return { url: '', ret: 999, msg: msg };
+                }
+                if (Number(ret) === 726 || Number(ret) === 401 || Number(ret) === 403) {
+                    _xmDebugLog.push(tag + ': 未授权 ret=' + ret + ' ' + msg);
+                    return { url: '', ret: Number(ret), msg: msg };
+                }
+                if (ret != null && Number(ret) !== 0 && !d.fileId && !d.ep) {
+                    _xmDebugLog.push(tag + ': ret=' + ret + ' msg=' + msg);
+                    return { url: '', ret: Number(ret), msg: msg };
+                }
+                var direct = d.playUrl || d.src || d.url || d.playPathAacv224 || d.playPathAacv164 || '';
+                if (direct && String(direct).indexOf('http') === 0) {
+                    _xmDebugLog.push(tag + ': 直链');
+                    return { url: toHttps(direct), ret: 0, msg: '' };
+                }
+                if (!d.fileId || d.seed == null || !d.ep) {
+                    _xmDebugLog.push(tag + ': 缺字段 keys=' + Object.keys(d || {}).slice(0, 12).join(',') + ' isAuth=' + d.isAuthorized);
+                    return { url: '', ret: Number(ret) || -2, msg: '缺字段' };
+                }
+                var built = _xmBuildMpayUrl(d);
+                if (built) {
+                    _xmDebugLog.push(tag + ': 组装成功 ' + built.substring(0, 90));
+                    return { url: toHttps(built), ret: 0, msg: '' };
+                }
+                _xmDebugLog.push(tag + ': 组装失败');
+                return { url: '', ret: -3, msg: '组装失败' };
+            }
+            function mpayHeaders(useMobileUa) {
+                var headers = {};
+                if (ck) {
+                    headers['Cookie'] = ck;
+                    headers['cookie'] = ck;
+                }
+                headers['Accept'] = 'application/json, text/plain, */*';
+                headers['Referer'] = 'https://www.ximalaya.com/';
+                headers['Origin'] = 'https://www.ximalaya.com';
+                if (useMobileUa) {
+                    headers['User-Agent'] = 'ting_8.3.98(iPhone; iOS 16.6; zh_CN)';
+                } else {
+                    headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+                }
+                return headers;
+            }
+            function tryFm(i, lastRet) {
+                if (i >= urls.length) return Promise.resolve({ url: '', ret: lastRet || -1, msg: '' });
+                var apiUrl = urls[i];
+                var headers = mpayHeaders(i >= 4 && i < 6); /* 中间几条试移动 UA */
+                _xmDebugLog.push('mpay-fm[' + i + ']: ' + apiUrl.substring(0, 110));
+                return HTTP._fmRequest(apiUrl, { method: 'GET' }, headers).then(function (res) {
+                    var parsed = parseMpayBody(res, 'mpay-fm[' + i + ']');
+                    if (parsed.url) return parsed;
+                    /* 999 连续出现时不必打完全部 URL，换一轮 UA/token 策略 */
+                    if (parsed.ret === 999 && i >= 3 && i < urls.length - 1 && !tokenQ) {
+                        /* 已经是纯 Cookie 仍 999，继续试带 token 的后半段 */
+                    }
+                    return tryFm(i + 1, parsed.ret);
+                }).catch(function (e) {
+                    _xmDebugLog.push('mpay-fm[' + i + ']: 失败 ' + (e && e.message));
+                    return tryFm(i + 1, lastRet);
+                });
+            }
+            function tryDirect(i, lastRet) {
+                if (i >= Math.min(urls.length, 4)) return Promise.resolve({ url: '', ret: lastRet || -1, msg: '' });
+                var apiUrl = urls[i];
+                var headers = mpayHeaders(false);
+                _xmDebugLog.push('mpay-xhr[' + i + ']: ' + apiUrl.substring(0, 110));
+                return HTTP.request(apiUrl, { headers: headers, preferDirect: true }).then(function (res) {
+                    var parsed = parseMpayBody(res, 'mpay-xhr[' + i + ']');
+                    if (parsed.url) return parsed;
+                    return tryDirect(i + 1, parsed.ret);
+                }).catch(function (e) {
+                    _xmDebugLog.push('mpay-xhr[' + i + ']: 失败 ' + (e && e.message));
+                    return tryDirect(i + 1, lastRet);
+                });
+            }
+            var hasFm = (typeof fm !== 'undefined' && fm.req && typeof fm.req === 'function');
+            _xmDebugLog.push('mpay: tid=' + tid + ' hasFm=' + hasFm + ' ckLen=' + (ck ? ck.length : 0) + ' token=' + (authToken ? '有' : '无'));
+            var runner = hasFm ? tryFm(0, -1) : tryDirect(0, -1);
+            return runner.then(function (r) {
+                if (r && r.url) return r.url;
+                if (hasFm && (!r || !r.url)) {
+                    return tryDirect(0, r && r.ret).then(function (r2) {
+                        if (r2 && r2.url) return r2.url;
+                        /* 把最后错误码挂到 debug，方便 UI 提示 */
+                        if (r2 && r2.ret === 999 || (r && r.ret === 999)) {
+                            _xmDebugLog.push('mpay: 最终失败 ret=999 账号异常/风控，请用官方网页登录后重新复制完整 Cookie（含 1&_token 与 device_id）');
+                        }
+                        return '';
+                    });
+                }
+                if (r && r.ret === 999) {
+                    _xmDebugLog.push('mpay: 最终失败 ret=999 账号异常/风控');
+                }
+                return '';
+            });
+        }
+
+        /* 跳转官方 App / 网页播放（付费精品风控时的兜底） */
+        function openInXmlyOfficial(track, album) {
+            track = track || (state.player && state.player.tracks && state.player.tracks[state.player.currentIndex]) || null;
+            album = album || state.currentAlbum || (state.player && state.player.album) || null;
+            var tid = track && (track.id || (track.raw && (track.raw.trackId || track.raw.id)));
+            var aid = album && (album.id || (album.raw && (album.raw.albumId || album.raw.id)));
+            if (!tid && !aid) {
+                showToast('无法跳转：缺少声音/专辑 ID', 2500);
+                return;
+            }
+            var webSound = tid ? ('https://www.ximalaya.com/sound/' + tid) : ('https://www.ximalaya.com/album/' + aid);
+            var mSound = tid ? ('https://m.ximalaya.com/sound/' + tid) : ('https://m.ximalaya.com/album/' + aid);
+            var schemes = [];
+            if (tid) {
+                schemes.push('iting://open?msg_type=11&track_id=' + tid);
+                schemes.push('iting://track?id=' + tid);
+                schemes.push('iting://open?msg_type=14&_ka=1&url=' + encodeURIComponent(webSound));
+            }
+            if (aid) {
+                schemes.push('iting://open?msg_type=12&album_id=' + aid);
+                schemes.push('iting://album?id=' + aid);
+            }
+            showToast('正在打开喜马拉雅官方…', 2000);
+            var tried = 0;
+            function tryNext() {
+                if (tried < schemes.length) {
+                    var s = schemes[tried++];
+                    try {
+                        var a = document.createElement('a');
+                        a.href = s;
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(function () {
+                            try { document.body.removeChild(a); } catch (e) {}
+                        }, 400);
+                    } catch (e) {}
+                    setTimeout(tryNext, 350);
+                    return;
+                }
+                try { window.open(mSound, '_blank'); } catch (e2) { location.href = mSound; }
+            }
+            tryNext();
+        }
+
         /* ========== 喜马拉雅适配 ========== */
         var Ximalaya = {
             categoryAlbums: function (categoryId, page, pageSize, metadataValues) {
@@ -7208,11 +8361,15 @@
                 if (!categoryId) return Ximalaya.search('有声书', page, pageSize);
                 var meta = metadataValues ? encodeURIComponent(metadataValues) : '';
                 var ts = Date.now();
+                /* 关键：官方接口只认 metadataValues，附带 metadataId=-1 会让标签筛选整体失效
+                   （返回整个分类的通用列表，导致各子分类内容雷同），因此这里不再传 metadataId。
+                   兜底 URL 同样必须携带 metadataValues，否则也会退化成通用列表。 */
+                var metaQ = meta ? ('&metadataValues=' + meta) : '';
                 var urls = [
                     'https://www.ximalaya.com/revision/category/v2/albums?categoryId=' + encodeURIComponent(categoryId) +
-                        '&pageNum=' + page + '&pageSize=' + pageSize + '&metadataValues=' + meta + '&metadataId=-1&sort=1&t=' + ts,
+                        '&pageNum=' + page + '&pageSize=' + pageSize + metaQ + '&sort=1&t=' + ts,
                     'https://www.ximalaya.com/revision/category/v2/albums?categoryId=' + encodeURIComponent(categoryId) +
-                        '&pageNum=' + page + '&pageSize=' + pageSize + '&sort=0&t=' + ts
+                        '&pageNum=' + page + '&pageSize=' + pageSize + metaQ + '&sort=0&t=' + ts
                 ];
                 function mapList(list) {
                     return (list || []).map(function (b) {
@@ -7246,6 +8403,12 @@
                         if (!Array.isArray(list)) list = [];
                         var books = mapList(list);
                         if (!books.length && i + 1 < urls.length) return tryUrl(i + 1);
+                        /* 元数据标签命中的专辑过少（<5）时视为无效标签，返回空列表，
+                           由上层降级到关键词搜索，避免只给用户看零星几条 */
+                        if (meta && res && res.data && res.data.total != null &&
+                            Number(res.data.total) < 5) {
+                            return { list: [], totalPage: 1, total: 0 };
+                        }
                         return { list: books, totalPage: books.length >= pageSize ? page + 1 : page, total: books.length };
                     }).catch(function () { return tryUrl(i + 1); });
                 }
@@ -7576,60 +8739,92 @@
                 }
                 /* 新接口：mobile-playpage/track/v3/baseInfo（带 xm-sign，device=www2 返回可解密的密文URL） */
                 function tryWebPlayApi() {
-                    function tryBaseInfo(device) {
+                    /* 官方网页播放器同款：mobile-playpage/track/v3/baseInfo + device=web
+                     * 返回加密 playUrlList，用网页 AES 密钥解密。VIP 畅听优先走这里而非 mpay。
+                     */
+                    function tryBaseInfo(host, device, forceFm) {
                         var ts = Date.now();
-                        var apiUrl = 'https://www.ximalaya.com/mobile-playpage/track/v3/baseInfo/' + ts +
-                            '?device=' + device + '&trackId=' + tid + '&trackQualityLevel=1';
-                        var authToken = _xmAuthTokenParam();
-                        if (authToken) apiUrl += '&' + encodeURIComponent('1&_token') + '=' + encodeURIComponent(authToken);
-                        _xmDebugLog.push('baseInfo(' + device + '): token=' + (authToken ? authToken.substring(0,10) + '...' : '无'));
-                        return _xmRequest(apiUrl).then(function (res) {
-                            if (!res) { _xmDebugLog.push('baseInfo(' + device + '): 空响应'); return ''; }
+                        var qLevel = (device === 'pc' || device === 'www2') ? 2 : 1;
+                        var apiUrl = host + '/mobile-playpage/track/v3/baseInfo/' + ts +
+                            '?device=' + encodeURIComponent(device) +
+                            '&trackId=' + encodeURIComponent(tid) +
+                            '&trackQualityLevel=' + qLevel;
+                        var headers = getXmlyHeaders({});
+                        headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+                        headers['Referer'] = 'https://www.ximalaya.com/';
+                        headers['Origin'] = 'https://www.ximalaya.com/';
+                        headers['Accept'] = 'application/json, text/plain, */*';
+                        _xmDebugLog.push('baseInfo(' + device + '@' + host.replace('https://','') + '): forceFm=' + !!forceFm);
+                        var req = forceFm && typeof HTTP._fmRequest === 'function'
+                            ? HTTP._fmRequest(apiUrl, { method: 'GET' }, headers)
+                            : HTTP.request(apiUrl, { headers: headers, preferDirect: !forceFm });
+                        return req.then(function (res) {
+                            if (!res) { _xmDebugLog.push('baseInfo: 空响应'); return ''; }
                             var d = res.data || res;
-                            var trackInfo = d.trackInfo || d.track || d;
-                            var ret = res.ret || d.ret || 0;
-                            var msg = res.msg || d.msg || '';
-                            _xmDebugLog.push('baseInfo(' + device + '): ret=' + ret + (msg ? ' msg=' + msg : '') + ' keys=' + Object.keys(d).join(','));
-                            if (ret !== 0 && ret !== 200) { _xmDebugLog.push('baseInfo(' + device + '): ret非0，跳过'); return ''; }
-                            /* 优先从 playUrlList 提取并解密 */
-                            var urlList = d.playUrlList || (trackInfo && trackInfo.playUrlList) || [];
-                            if (urlList.length) _xmDebugLog.push('baseInfo(' + device + '): playUrlList有' + urlList.length + '项');
+                            if (typeof d === 'string') {
+                                try { d = JSON.parse(d); } catch (e) { return ''; }
+                            }
+                            var trackInfo = d.trackInfo || (d.data && d.data.trackInfo) || d;
+                            var ret = (d.ret != null ? d.ret : (res.ret != null ? res.ret : 0));
+                            var msg = d.msg || res.msg || '';
+                            _xmDebugLog.push('baseInfo: ret=' + ret + (msg ? ' msg=' + msg : '') +
+                                ' auth=' + (trackInfo && trackInfo.isAuthorized) +
+                                ' paid=' + (trackInfo && trackInfo.isPaid) +
+                                ' keys=' + Object.keys(d).slice(0, 10).join(','));
+                            if (trackInfo && trackInfo.isAuthorized === false) {
+                                _xmDebugLog.push('baseInfo: 未授权 isAuthorized=false（Cookie 可能无 VIP 权或未带上）');
+                            }
+                            if (ret != null && Number(ret) !== 0 && Number(ret) !== 200 && !(trackInfo && trackInfo.playUrlList)) {
+                                return '';
+                            }
+                            var urlList = (trackInfo && trackInfo.playUrlList) || d.playUrlList || [];
+                            if (urlList.length) _xmDebugLog.push('baseInfo: playUrlList=' + urlList.length);
                             for (var i = 0; i < urlList.length; i++) {
                                 var item = urlList[i] || {};
                                 var rawUrl = item.url || item.playUrl || item.playUrl64 || '';
-                                if (rawUrl) {
-                                    var dec = _decryptXmUrl(rawUrl);
-                                    if (dec && dec.indexOf('http') === 0) { _xmDebugLog.push('baseInfo(' + device + '): 解密成功'); return toHttps(dec); }
-                                    if (rawUrl.indexOf('http') === 0) { _xmDebugLog.push('baseInfo(' + device + '): 明文URL'); return toHttps(rawUrl); }
+                                if (!rawUrl) continue;
+                                if (String(rawUrl).indexOf('http') === 0) {
+                                    _xmDebugLog.push('baseInfo: 明文URL');
+                                    return toHttps(rawUrl);
+                                }
+                                var dec = _decryptXmUrl(rawUrl);
+                                if (dec && dec.indexOf('http') === 0) {
+                                    _xmDebugLog.push('baseInfo: AES解密成功');
+                                    return toHttps(dec);
                                 }
                             }
-                            if (!trackInfo) { _xmDebugLog.push('baseInfo(' + device + '): 无trackInfo'); return ''; }
-                            var u = trackInfo.playUrl || trackInfo.play_url || trackInfo.src ||
-                                trackInfo.playUrl64 || trackInfo.play_url_64 ||
-                                trackInfo.playPathAacv224 || trackInfo.play_path_aac_v224 ||
-                                trackInfo.playPathAacv164 || trackInfo.play_path_aac_v164 ||
-                                trackInfo.playPath || trackInfo.play_path || '';
-                            if (u && u.indexOf('http') !== 0) {
-                                _xmDebugLog.push('baseInfo(' + device + '): trackInfo.url非HTTP, 尝试解密');
-                                var dec2 = _decryptXmUrl(u);
-                                if (dec2 && dec2.indexOf('http') === 0) return toHttps(dec2);
+                            var plain = (trackInfo && (trackInfo.playUrl || trackInfo.playPathAacv224 ||
+                                trackInfo.playPathAacv164 || trackInfo.playUrl64)) || '';
+                            if (plain && String(plain).indexOf('http') === 0) return toHttps(plain);
+                            if (plain) {
+                                var d2 = _decryptXmUrl(plain);
+                                if (d2 && d2.indexOf('http') === 0) return toHttps(d2);
                             }
-                            _xmDebugLog.push('baseInfo(' + device + '): 最终url=' + (u ? u.substring(0,30) : '空'));
-                            return toHttps(u);
-                        }).catch(function (e) { _xmDebugLog.push('baseInfo(' + device + '): 请求失败 ' + (e && e.message)); return ''; });
-                    }
-                    /* 多 device 尝试：www2/web 返回 AES 密文 playUrlList，android/iPhone 有时给明文 */
-                    var devices = ['www2', 'web', 'android', 'iPhone'];
-                    function tryNextDevice(i) {
-                        if (i >= devices.length) return Promise.resolve('');
-                        return tryBaseInfo(devices[i]).then(function (u) {
-                            if (u) return u;
-                            return tryNextDevice(i + 1);
+                            return '';
+                        }).catch(function (e) {
+                            _xmDebugLog.push('baseInfo: 失败 ' + (e && e.message));
+                            return '';
                         });
                     }
-                    return tryNextDevice(0);
+                    var hosts = [
+                        ['https://mobile.ximalaya.com', 'web', true],
+                        ['https://mobile.ximalaya.com', 'www2', true],
+                        ['https://www.ximalaya.com', 'web', true],
+                        ['https://mobile.ximalaya.com', 'pc', true],
+                        ['https://mobwsa.ximalaya.com', 'android', true],
+                        /* 再试直连：WebView 若已种 .ximalaya.com Cookie 可能成功 */
+                        ['https://mobile.ximalaya.com', 'web', false],
+                        ['https://www.ximalaya.com', 'www2', false]
+                    ];
+                    function tryNext(i) {
+                        if (i >= hosts.length) return Promise.resolve('');
+                        return tryBaseInfo(hosts[i][0], hosts[i][1], hosts[i][2]).then(function (u) {
+                            if (u) return u;
+                            return tryNext(i + 1);
+                        });
+                    }
+                    return tryNext(0);
                 }
-                /* 备选新接口：revision/play/v1/audio（带 xm-sign，src 可能加密） */
                 function tryRevisionPlayApi() {
                     var apiUrl = 'https://www.ximalaya.com/revision/play/v1/audio?id=' + tid + '&ptype=1';
                     var authToken = _xmAuthTokenParam();
@@ -7725,25 +8920,62 @@
                         return '';
                     }).catch(function (e) { _xmDebugLog.push('revShow: 请求失败 ' + (e && e.message)); return ''; });
                 }
-                /* 优先级：直连audio → mobwsa移动端 → baseInfo(www2) → revisionPlay → revShow → album → 旧接口免费 */
-                return tryDirectAudioApi().then(function (u0) {
-                    if (u0) return u0;
-                    return tryMobilePlaylistApi().then(function (u1) {
-                        if (u1) return u1;
-                        return tryWebPlayApi().then(function (u2) {
-                            if (u2) return u2;
-                            return tryRevisionPlayApi().then(function (u3) {
-                                if (u3) return u3;
-                                return tryRevisionShowApi().then(function (u4) {
-                                    if (u4) return u4;
-                                    return tryAlbumPlayApi().then(function (u5) {
-                                        if (u5) return u5;
-                                        return tryLegacyApi();
+                /* 优先级：付费精品优先 mpay → 直连audio → mobwsa → baseInfo → revisionPlay → revShow → album → 旧接口 */
+                function chainNormal() {
+                    return tryDirectAudioApi().then(function (u0) {
+                        if (u0) return u0;
+                        return tryMobilePlaylistApi().then(function (u1) {
+                            if (u1) return u1;
+                            return tryWebPlayApi().then(function (u2) {
+                                if (u2) return u2;
+                                return tryRevisionPlayApi().then(function (u3) {
+                                    if (u3) return u3;
+                                    return tryRevisionShowApi().then(function (u4) {
+                                        if (u4) return u4;
+                                        return tryAlbumPlayApi().then(function (u5) {
+                                            if (u5) return u5;
+                                            return tryLegacyApi();
+                                        });
                                     });
                                 });
                             });
                         });
                     });
+                }
+                var paidLike = _xmIsPaidLikeTrack(track);
+                var purePaid = !!(track.contentPaid === true || (track.raw && xmRawIsPaidContent(track.raw)));
+                _xmDebugLog.push('paidLike=' + paidLike + ' purePaid=' + purePaid +
+                    ' contentPaid=' + track.contentPaid + ' isVipContent=' + track.isVipContent);
+                /* 付费精品(个人成长等) 与 VIP 畅听走不同主路径，互相兜底，避免「有时能播有时不行」
+                 * - purePaid：优先 mpay（官方付费精品通道），失败再 baseInfo + 普通链
+                 * - VIP畅听：优先 baseInfo（官方网页 device=web），失败再 mpay + 普通链
+                 * - 并行竞速：两条同时请求，再按类型选结果
+                 */
+                if (paidLike && state.xmlyCk) {
+                    var pMpay = _xmTryMpayPayUrl(tid).then(function (u) { return u || ''; }).catch(function () { return ''; });
+                    var pBase = tryWebPlayApi().then(function (u) { return u || ''; }).catch(function () { return ''; });
+                    return Promise.all([pMpay, pBase]).then(function (arr) {
+                        var mu = arr[0] || '', bu = arr[1] || '';
+                        if (purePaid) {
+                            if (mu) { _xmDebugLog.push('paid路径: mpay成功(精品优先)'); return mu; }
+                            if (bu) { _xmDebugLog.push('paid路径: baseInfo兜底'); return bu; }
+                        } else {
+                            if (bu) { _xmDebugLog.push('paid路径: baseInfo成功(VIP优先)'); return bu; }
+                            if (mu) { _xmDebugLog.push('paid路径: mpay兜底'); return mu; }
+                        }
+                        _xmDebugLog.push('paid路径: mpay/baseInfo 皆空 → chainNormal');
+                        return chainNormal();
+                    });
+                }
+                return chainNormal().then(function (u) {
+                    if (u) return u;
+                    if (state.xmlyCk) {
+                        return tryWebPlayApi().then(function (bu) {
+                            if (bu) return bu;
+                            return _xmTryMpayPayUrl(tid);
+                        });
+                    }
+                    return '';
                 });
             }
         };
@@ -9411,7 +10643,14 @@
             sourceId = sourceId || state.sourceId;
             var modal = document.getElementById('detailModal');
             var body = document.getElementById('detailBody');
+            /* 后打开的在上：详情页置顶，播放页退到其下（toast z=9999 在 DOM 更靠后，仍在最上） */
+            try {
+                var ppEl = document.getElementById('playPage');
+                if (modal) modal.style.zIndex = '9999';
+                if (ppEl) ppEl.style.zIndex = '9998';
+            } catch (eZ) {}
             document.body.classList.add('detail-open');
+            _detailTagToken++; /* 作废上一次详情页未完成的标签回填 */
             state.currentAlbum = null;
             state.currentTracks = [];
             state.currentTrackPage = 1;
@@ -9476,6 +10715,11 @@
                     if (!result.album.cover) result.album.cover = fromList.cover;
                     if (!result.album.author) result.album.author = fromList.author;
                     if (!result.album.intro && fromList.intro) result.album.intro = fromList.intro;
+                    /* 标签兜底：详情接口缺 tags 时用列表/搜索结果里的 */
+                    if (fromList.raw && fromList.raw.tags &&
+                        !(result.album.raw && result.album.raw.tags)) {
+                        try { result.album.raw = result.album.raw || {}; result.album.raw.tags = fromList.raw.tags; } catch (eTg) {}
+                    }
                 }
                 // 若专辑仍无封面，用首集封面
                 if (!result.album.cover && result.tracks && result.tracks[0] && result.tracks[0].cover) {
@@ -9510,6 +10754,9 @@
             if (!modal.classList.contains('active')) {
                 _detailClosing = false;
                 state.detailLoading = false;
+                /* 兜底：即使没走动画分支，也要确保 detail-open 不残留（否则详情页 z-index 会一直卡在 9999） */
+                document.body.classList.remove('detail-open');
+                modal.style.zIndex = '';
                 modal.style.transition = '';
                 modal.style.transform = '';
                 modal.style.opacity = '';
@@ -9533,16 +10780,120 @@
                 modal.style.transition = 'none';
             }
             if (!skipHistory) syncHistoryOnClose('detail');
-            else { _detailHistPushed = false; setPageChrome(!!isAnyOverlayOpen()); }
+            else { resetOverlayFlag('detail'); setPageChrome(!!isAnyOverlayOpen()); }
             setTimeout(function () {
                 modal.classList.remove('active');
                 document.body.classList.remove('detail-open');
+                modal.style.zIndex = '';
                 modal.style.transition = '';
                 modal.style.transform = '';
                 modal.style.opacity = '';
                 state.detailLoading = false;
                 _detailClosing = false;
             }, needAnim ? 260 : 20);
+        }
+        /* 解析专辑分类标签：喜马拉雅为逗号分隔字符串，其他源可能为数组/竖线分隔 */
+        function parseAlbumTags(album) {
+            var raw = (album && album.raw) || {};
+            var t = raw.tags || raw.tag || raw.categories || '';
+            var arr;
+            if (Object.prototype.toString.call(t) === '[object Array]') {
+                arr = t;
+            } else {
+                arr = String(t || '').split(/[,，、|/#]+/);
+            }
+            var out = [];
+            for (var i = 0; i < arr.length && out.length < 4; i++) {
+                var s = String(arr[i] || '').trim();
+                if (!s || s.length > 10) continue;
+                if (out.indexOf(s) > -1) continue;
+                if (s === album.categoryName) continue;
+                out.push(s);
+            }
+            return out;
+        }
+        /* 详情页专辑标签渲染（独立容器，便于异步补标签时局部更新） */
+        var _detailTagToken = 0;
+        function buildAlbumTagsHtml(album) {
+            var bt = parseAlbumTags(album), h = '';
+            for (var i = 0; i < bt.length; i++) {
+                h += '<span class="detail-tag">' + escapeHtml(bt[i]) + '</span>';
+            }
+            return h;
+        }
+        function renderAlbumTagsInto(album, token) {
+            if (token !== _detailTagToken) return; /* 已切到别的专辑，放弃本次回填 */
+            var box = document.getElementById('detailBookTags');
+            if (!box) return;
+            box.innerHTML = buildAlbumTagsHtml(album);
+        }
+        /* 专辑标签补取（详情页/播放页共用）：主接口常无 tags，用专辑详情接口的 showTagList 兜底 */
+        function ensureAlbumTags(album, onDone) {
+            if (!album || album.source !== 'ximalaya') { if (onDone) onDone(false); return; }
+            var raw = album.raw = album.raw || {};
+            if (raw.tags) { if (onDone) onDone(true); return; }
+            if (raw._tagsFetching) return;
+            var albumId = String(album.id || raw.albumId || '').trim();
+            if (!albumId) { if (onDone) onDone(false); return; }
+            raw._tagsFetching = 1;
+            HTTP.request('https://mobile.ximalaya.com/mobile/v1/album/detail?albumId=' + encodeURIComponent(albumId), {
+                headers: { 'User-Agent': 'ting_8.3.28(Android;Android 12;1080*2400)', 'Accept': 'application/json' }
+            }).then(function (res) {
+                raw._tagsFetching = 0;
+                var d = (res && res.data) ? res.data : (res || {});
+                var stl = (d.detail && d.detail.showTagList) || d.showTagList || [];
+                var names = [];
+                for (var i = 0; i < stl.length; i++) {
+                    var n = String((stl[i] && (stl[i].tagName || stl[i].name)) || '').trim();
+                    if (n) names.push(n);
+                }
+                if (names.length) raw.tags = names.join(',');
+                if (onDone) onDone(!!names.length);
+            }).catch(function () {
+                raw._tagsFetching = 0;
+                if (onDone) onDone(false);
+            });
+        }
+        /* 详情页专用：带 token 校验，避免切换专辑后回填到错误的书 */
+        function fetchAlbumTagsAsync(albumId) {
+            var album = state.currentAlbum;
+            if (!album) return;
+            var token = _detailTagToken;
+            ensureAlbumTags(album, function () {
+                if (token !== _detailTagToken) return;
+                renderAlbumTagsInto(album, token);
+            });
+        }
+        var _playTagsAlbumKey = '';
+        function albumKeyOf(a) { return a ? albumKey(a.source, a.id) : ''; }
+        /* 播放页标签（封面卡片上方）：与详情页共用 parseAlbumTags + ensureAlbumTags，
+           换专辑自动重渲染，同一专辑不重复渲染（播放/暂停等高频事件也会走到这里） */
+        function renderPlayPageTags() {
+            var box = document.getElementById('playPageBookTags');
+            var album = state.player && state.player.album;
+            if (!box) return;
+            if (!album) { box.innerHTML = ''; return; }
+            var bt = parseAlbumTags(album), h = '';
+            for (var i = 0; i < bt.length; i++) {
+                h += '<span class="play-tag">' + escapeHtml(bt[i]) + '</span>';
+            }
+            box.innerHTML = h;
+        }
+        function refreshPlayPageTags(force) {
+            var album = state.player && state.player.album;
+            if (!album) return;
+            var key = albumKeyOf(album);
+            if (!force && key === _playTagsAlbumKey) return; /* 同一专辑：只在换专辑或强制时重建 */
+            _playTagsAlbumKey = key;
+            renderPlayPageTags();
+            ensureAlbumTags(album, function (ok) {
+                if (!ok) return;
+                /* 异步回填期间可能已切到别的专辑，校验后再渲染 */
+                if (albumKeyOf(state.player && state.player.album) !== key) return;
+                renderPlayPageTags();
+                /* 标签出现会改变封面块总高 → 重新居中 */
+                try { syncPlayViewSwitchPosition(); } catch (eSy) {}
+            });
         }
         function renderDetail() {
             var body = document.getElementById('detailBody');
@@ -9563,6 +10914,7 @@
                 (album.categoryName ? '<span class="detail-tag">' + escapeHtml(album.categoryName) + '</span>' : '') +
                 (album.isPaid ? '<span class="detail-tag" style="background:rgba(245,158,11,.2);color:#FBBF24;">VIP</span>' :
                     '<span class="detail-tag" style="background:rgba(16,185,129,.2);color:#34D399;">免费</span>') +
+                '<span class="detail-book-tags" id="detailBookTags">' + buildAlbumTagsHtml(album) + '</span>' +
                 '</div></div>' +
                 '<div class="detail-stats">' +
                 '<div class="detail-stat">▶ ' + formatPlayCount(album.playCount) + '</div>' +
@@ -9584,8 +10936,10 @@
             }
             html += '<div class="detail-section"><div class="detail-chapter-toolbar">' +
                 '<div class="detail-section-title">章节列表 (' + (album.trackCount || state.trackTotalCount) + '集)</div>' +
-                '<button type="button" class="sort-toggle-btn" id="detailSortBtn">' +
-                (state.trackSort === 'asc' ? '正序' : '倒序') + '</button></div>' +
+                '<button type="button" class="sort-toggle-btn' + (state.trackSort === 'asc' ? '' : ' sort-desc') + '" id="detailSortBtn" title="切换章节排序">' +
+                '<svg class="sort-ico sort-ico-asc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M3.5 17.5 7 21l3.5-3.5"/><path d="M13 5h8M13 10h6M13 15h4M13 20h2"/></svg>' +
+                '<svg class="sort-ico sort-ico-desc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21V3M3.5 6.5 7 3l3.5 3.5"/><path d="M13 5h2M13 10h4M13 15h6M13 20h8"/></svg>' +
+                '<span class="sort-txt">' + (state.trackSort === 'asc' ? '正序' : '倒序') + '</span></button></div>' +
                 '<div class="skip-bar" id="detailSkipBar">' +
                 '<label>片头 <input type="number" id="skipIntroInput" min="0" max="300" step="1" inputmode="numeric"> 秒</label>' +
                 '<label>片尾 <input type="number" id="skipOutroInput" min="0" max="300" step="1" inputmode="numeric"> 秒</label>' +
@@ -9613,6 +10967,8 @@
                 moreBtn.onclick = function () { loadMoreTracks(); };
             }
             bindTrackScrollLoad();
+            /* 专辑标签兜底：主接口常无 tags，改用专辑详情接口补齐（任何进入详情的路径都会走到这里） */
+            try { fetchAlbumTagsAsync(album.id); } catch (eTg) {}
             /* 详情页底栏按钮绑定 */
             var navFav = document.getElementById('detailNavFav');
             var navResume = document.getElementById('detailNavResume');
@@ -10311,7 +11667,10 @@
                 state.player.isPlaying = true;
                 /* 播放成功，重置连续失败计数 */
                 state.player._consecutiveFail = 0;
-                playAudio(url);
+                /* 优先播本地缓存（弱网/断网/锁屏也能连播），未命中则在线播并后台缓存 */
+                playWithCache(track, url, token);
+                /* 播起来后立刻补齐后续几集 */
+                try { preloadNextTrack(); } catch (eP) {}
             }
             /* 已有地址则立刻播，不等解析 */
             /* 地址缓存超过3小时则视为过期，重新解析 */
@@ -10341,11 +11700,17 @@
                     if (_xmDebugLog.length) console.log('[播放调试]', _xmDebugLog.join('\n'));
                     var hasCk = !!(state.xmlyCk && state.xmlyCk.trim());
                     var tip;
-                    if (locked && !hasCk) {
+                    var logStr = (_xmDebugLog || []).join('\n');
+                    var mpayRisk = /ret=999|账号异常|风控999/.test(logStr);
+                    var baseOkAttempt = /baseInfo:/.test(logStr);
+                    var baseGotList = /playUrlList=/.test(logStr) || /AES解密成功/.test(logStr);
+                    if (mpayRisk && !baseGotList) {
+                        tip = '付费精品风控，本应用无法解析；将尝试打开官方喜马拉雅';
+                    } else if (locked && !hasCk) {
                         tip = '该集为VIP内容，请先在设置中配置喜马拉雅登录 Cookie';
                         if (state.xmlyCk) notifyCkInvalid('VIP 解析失败，Cookie 可能已失效');
                     } else if (locked) {
-                        tip = '该集为VIP内容，当前 Cookie 可能无效或未开通VIP，请重新复制完整 Cookie';
+                        tip = '该集为VIP内容，Cookie 可能无效；将尝试打开官方喜马拉雅';
                     } else if (!hasCk) {
                         tip = '暂无播放地址。若为VIP章节，请先在设置中配置 Cookie';
                         if (state.xmlyCk) notifyCkInvalid('播放地址获取失败，Cookie 可能已失效');
@@ -10354,6 +11719,13 @@
                     }
                     if (_xmDebugLog.length) console.log('[播放调试]\n' + _xmDebugLog.join('\n'));
                     finishFail(tip);
+                    /* 付费精品失败时唤起官方 App（登录态在官方 App 内，无法回传到本页） */
+                    if (track && (track.source === 'ximalaya' || !track.source) &&
+                        (mpayRisk || locked || /官方喜马拉雅/.test(tip || ''))) {
+                        setTimeout(function () {
+                            try { openInXmlyOfficial(track); } catch (eO) {}
+                        }, 800);
+                    }
                     return;
                 }
                 finishPlay(url);
@@ -10368,6 +11740,8 @@
             state.player.isPlaying = true;
             state.player.isBuffering = true;
             try { audio.pause(); } catch (e) {}
+            /* 切换到别的音源时释放上一个 blob URL，避免内存堆积 */
+            if (_blobUrl && url !== _blobUrl) revokeBlobUrl();
             audio.src = url;
             try { audio.playbackRate = state.playbackRate || 1; } catch (e2) {}
             // 进度记忆：同专辑同集续播
@@ -10487,6 +11861,23 @@
                 state.player.currentIndex--;
                 playCurrentTrack();
             } else showToast('已经是第一集');
+        }
+        /* 快退 / 快进 15 秒：仅调整 currentTime，不切换曲目 */
+        function playBack15() {
+            var audio = ensureAudio();
+            if (!audio) return;
+            try { audio.currentTime = Math.max(0, audio.currentTime - 15); } catch (e) {}
+        }
+        function playForward15() {
+            var audio = ensureAudio();
+            if (!audio) return;
+            try {
+                if (audio.duration && isFinite(audio.duration)) {
+                    audio.currentTime = Math.min(Math.max(0, audio.duration - 1), audio.currentTime + 15);
+                } else {
+                    audio.currentTime = audio.currentTime + 15;
+                }
+            } catch (e) {}
         }
         function playNext() {
             if (state.player.currentIndex < state.player.tracks.length - 1) {
@@ -11354,10 +12745,420 @@
                 }
             } catch (eNd) {}
         }
+
+        /* ========== 喜马拉雅文稿：拉取 & 切换 ========== */
+        var _xmlyTranscriptCache = {};   /* trackId -> { text, checked, hasAigc } */
+        var _playViewBound = false;
+
+        /* 获取喜马拉雅文稿文本 */
+        function fetchXmlyTranscript(trackId) {
+            trackId = String(trackId || '').trim();
+            if (!trackId) return Promise.resolve('');
+            var cached = _xmlyTranscriptCache[trackId];
+            if (cached && cached.text !== undefined) return Promise.resolve(cached.text);
+            var result = '';
+
+            /* 先试 /revision/track/simple（含 draft 字段）*/
+            var apiUrl1 = 'https://www.ximalaya.com/revision/track/simple?trackId=' + encodeURIComponent(trackId);
+            return _xmRequest(apiUrl1).then(function (res) {
+                _xmDebugLog.push('文稿simple: ret=' + (res ? res.ret : 'null') + ' type=' + typeof res);
+                if (!res) return '';
+                var d = res.data || res;
+                var ti = (d && d.trackInfo) || {};
+                var draft = ti.draft || '';
+                var rich = ti.richIntro || '';
+                _xmDebugLog.push('文稿simple: draft=' + (draft ? draft.length + '字' : '空') + ' richIntro=' + (rich ? rich.length + '字' : '空'));
+                if (draft) { result = draft; return result; }
+                if (rich) { result = _stripHtml(rich); return result; }
+                return '';
+            }).catch(function (e1) {
+                _xmDebugLog.push('文稿simple失败: ' + String(e1).substring(0, 80));
+                return '';
+            }).then(function (text1) {
+                if (text1) return text1;
+                /* 回退1：/revision/track/trackPageInfo（取 richIntro + albumId）*/
+                var apiUrl2 = 'https://www.ximalaya.com/revision/track/trackPageInfo?trackId=' + encodeURIComponent(trackId);
+                return _xmRequest(apiUrl2).then(function (res2) {
+                    _xmDebugLog.push('文稿trackPageInfo: ret=' + (res2 ? res2.ret : 'null'));
+                    if (!res2) return '';
+                    var d2 = res2.data || res2;
+                    var ti2 = (d2 && d2.trackInfo) || {};
+                    var rich2 = ti2.richIntro || ti2.draft || '';
+                    /* 从 albumInfo 获取 albumId */
+                    var ai = (d2 && d2.albumInfo) || {};
+                    var albumId = ai.albumId || '';
+                    _xmDebugLog.push('文稿trackPageInfo: richIntro=' + (rich2 ? rich2.length + '字' : '空') + ' albumId=' + albumId);
+                    if (rich2) return _stripHtml(rich2);
+                    /* 回退2：/revision/album/v1/simple（取专辑 draft + richIntro）*/
+                    if (!albumId) return '';
+                    var apiUrl3 = 'https://www.ximalaya.com/revision/album/v1/simple?albumId=' + encodeURIComponent(albumId);
+                    return _xmRequest(apiUrl3).then(function (res3) {
+                        _xmDebugLog.push('文稿album: ret=' + (res3 ? res3.ret : 'null'));
+                        if (!res3) return '';
+                        var d3 = res3.data || res3;
+                        var draft3 = d3.draft || '';
+                        var apmi = d3.albumPageMainInfo || {};
+                        var rich3 = apmi.richIntro || apmi.detailRichIntro || apmi.shortIntro || '';
+                        _xmDebugLog.push('文稿album: draft=' + (draft3 ? draft3.length + '字' : '空') + ' richIntro=' + (rich3 ? rich3.length + '字' : '空'));
+                        if (draft3) return draft3;
+                        return rich3 ? _stripHtml(rich3) : '';
+                    }).catch(function (e3) {
+                        _xmDebugLog.push('文稿album失败: ' + String(e3).substring(0, 80));
+                        return '';
+                    });
+                }).catch(function (e2) {
+                    _xmDebugLog.push('文稿trackPageInfo失败: ' + String(e2).substring(0, 80));
+                    return '';
+                });
+            }).then(function (finalText) {
+                if (!_xmlyTranscriptCache[trackId]) _xmlyTranscriptCache[trackId] = {};
+                _xmlyTranscriptCache[trackId].text = finalText || '';
+                return finalText || '';
+            });
+        }
+
+        /* 去 HTML 标签，保留文本和换行 */
+        function _stripHtml(html) {
+            if (!html) return '';
+            return html
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>/gi, '\n')
+                .replace(/<\/div>/gi, '\n')
+                .replace(/<[^>]+>/g, '')
+                .replace(/&nbsp;/g, ' ')
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&#39;/g, "'")
+                .replace(/&quot;/g, '"')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+        }
+
+        /* 检测该 track 是否有 AI 文稿（/revision/track/checkIsAigc） */
+        function checkXmlyAigc(trackId) {
+            trackId = String(trackId || '').trim();
+            if (!trackId) return Promise.resolve(false);
+            var cached = _xmlyTranscriptCache[trackId];
+            if (cached && cached.hasAigc !== undefined) return Promise.resolve(cached.hasAigc);
+            var apiUrl = 'https://www.ximalaya.com/revision/track/checkIsAigc';
+            return _xmRequest(apiUrl, {
+                method: 'POST',
+                data: JSON.stringify({ trackIds: [trackId] }),
+                headers: { 'Content-Type': 'application/json' }
+            }).then(function (res) {
+                if (!res || Number(res.ret) !== 0) return false;
+                var d = res.data || {};
+                return d[trackId] === true;
+            }).catch(function () { return false; }).then(function (hasAigc) {
+                if (!_xmlyTranscriptCache[trackId]) _xmlyTranscriptCache[trackId] = {};
+                _xmlyTranscriptCache[trackId].hasAigc = hasAigc;
+                return hasAigc;
+            });
+        }
+
+        /* 记录上次重置视图时的 track，用于「仅在切集时」回到封面 */
+        var _lastViewTrackId = null;
+
+        /* 切换封面/相关推荐视图 */
+        function switchPlayView(view) {
+            var playPage = document.getElementById('playPage');
+            var disc = document.getElementById('playPageDisc');
+            var panel = document.getElementById('playPageTranscript');
+            var tabCover = document.getElementById('playViewTabCover');
+            var tabRelated = document.getElementById('playViewTabRelated');
+            if (!playPage) return;
+            if (view === 'related') {
+                playPage.classList.add('view-transcript');
+                if (disc) disc.style.display = 'none';
+                if (panel) { panel.style.display = 'block'; panel.classList.add('show'); }
+                if (tabCover) tabCover.classList.remove('active');
+                if (tabRelated) tabRelated.classList.add('active');
+                /* 异常隔离：位置同步失败也不能阻断后续 loadPlayRelated */
+                try { syncPlayViewSwitchPosition(); } catch (eSync) {} /* 切到相关视图时重新对齐位置 */
+                loadPlayRelated();
+            } else {
+                playPage.classList.remove('view-transcript');
+                if (disc) disc.style.display = '';
+                if (panel) { panel.style.display = 'none'; panel.classList.remove('show'); }
+                if (tabCover) tabCover.classList.add('active');
+                if (tabRelated) tabRelated.classList.remove('active');
+                try { syncPlayViewSwitchPosition(); } catch (eSync2) {}
+            }
+        }
+
+        /* 测量 header 实际高度，把 switch 钉到「header 下方 12px」处；disc/panel 的 margin-top 与 margin-bottom
+           同时设置为同一个 safePadding 值 ——让「按钮→内容」与「内容→下方元素」上下间距完全相等。
+           说明：switch 是 .play-page-content(position:relative) 的直接子元素，absolute 的 top 基准
+           即播放页顶部，所以用「header 相对 playPage 的偏移 + header 高度 + 12px」作为 top。
+           - header → switch：12px 空隙（彻底避开标题/作者）
+           - switch → 内容：safePadding 空隙（避开按钮）
+           - 内容 → 下一个兄弟节点：同一个 safePadding（让上下间距对称）
+           - 必须用 setProperty('important')，否则被 .play-page-transcript 的 margin-top:0 !important 覆盖 */
+        function syncPlayViewSwitchPosition() {
+            var playPage = document.getElementById('playPage');
+            var content = playPage && playPage.querySelector('.play-page-content');
+            var header = playPage && playPage.querySelector('.play-page-header');
+            var switchEl = document.getElementById('playViewSwitch');
+            var disc = document.getElementById('playPageDisc');
+            var panel = document.getElementById('playPageTranscript');
+            if (!playPage || !header || !switchEl || !content) return;
+            /* 列表展开态：封面 margin 由 list-open 的样式表接管，无需（也不应）写入沉浸态间距 */
+            if (playPage.classList.contains('list-open')) return;
+            /* 取相对差值而非绝对坐标：即使播放页正处于滑入 transform 中，差值依然准确 */
+            var playRect = playPage.getBoundingClientRect();
+            var contentRect = content.getBoundingClientRect();
+            var headerTop = header.getBoundingClientRect().top - playRect.top;
+            var headerH = header.getBoundingClientRect().height;
+            /* switch 被 .hidden 隐藏时高度为 0，回退到默认 36px */
+            var switchH = Math.round(switchEl.getBoundingClientRect().height) || 36;
+            /* header → switch 之间留 12px，避免压在标题/作者文字上 */
+            var headerGap = 12;
+            var switchTop = Math.round(headerTop + headerH + headerGap);
+            switchEl.style.setProperty('top', switchTop + 'px', 'important');
+            var switchBottom = switchTop + switchH; /* 相对 playPage 顶部 */
+
+            var isRelated = playPage.classList.contains('view-transcript');
+
+            if (isRelated) {
+                /* ===== 相关视图：列表距按钮/控件各 15px，内容自适应 ===== */
+                var safePaddingRelated = 15;
+                var listMarginTop = switchBottom - (headerTop + headerH) + safePaddingRelated;
+                if (panel) {
+                    panel.style.setProperty('margin-top', listMarginTop + 'px', 'important');
+                    panel.style.setProperty('margin-bottom', safePaddingRelated + 'px', 'important');
+                }
+                if (disc) {
+                    disc.style.marginTop = '';
+                    disc.style.marginBottom = '';
+                }
+            } else {
+                /* ===== 封面视图：卡片 + 标题文字 视为一个整体，在「按钮 ↔ 控件」之间垂直居中 =====
+                   - 整体顶部到按钮底部的距离 = 整体底部（文字底）到控件顶部的距离
+                   - 卡片与标题文字之间的固定间距 = 10px
+                   - 标题文字自身 margin-top 保持 0，不额外偏移 */
+                var info = playPage.querySelector('.play-page-info');
+                var toolRow = playPage.querySelector('.play-tool-row') || document.getElementById('playToolRow');
+                var contentH = Math.round(content.clientHeight);
+                /* 沉浸态封面尺寸由 CSS 钉死为 min(76vw, 300px)，直接按此计算，
+                   避免读 getBoundingClientRect 在滑入动画/过渡中量到中间值 */
+                var discH = Math.min(Math.round(window.innerWidth * 0.76), 300);
+                var infoH = 0;
+                if (info && info.style.display !== 'none') {
+                    infoH = Math.round(info.getBoundingClientRect().height);
+                }
+                var bottomH = 0;
+                if (toolRow) {
+                    var trRect = toolRow.getBoundingClientRect();
+                    bottomH = Math.round(contentRect.bottom - trRect.top);
+                }
+                /* switch 底到 .play-page-content 顶的距离 */
+                var topBound = Math.round(switchEl.getBoundingClientRect().bottom - contentRect.top);
+                var cardTextGap = 24; /* 卡片 ↔ 底部文字 / 标签 ↔ 卡片，两处间距一致 */
+                /* 封面卡片上方的专辑标签：有则计入整体高度，由它承担上方空隙 */
+                var tagsEl = playPage.querySelector('.play-page-tags');
+                var tagsH = 0;
+                if (tagsEl && tagsEl.offsetParent !== null && tagsEl.children.length) {
+                    tagsH = Math.round(tagsEl.getBoundingClientRect().height);
+                }
+                /* 有标签时：标签 ↔ 卡片 的间距与 卡片 ↔ 底部文字 的间距完全一致，
+                   由 .play-page-disc 的 margin-top 承担（展开态由样式表的 list-open 规则接管） */
+                var tagsGap = cardTextGap;
+                var blockH = (tagsH ? tagsH + tagsGap : 0) + discH + cardTextGap + infoH; /* 整体高度 */
+                var remaining = contentH - topBound - bottomH - blockH;
+                var gap = Math.max(8, Math.round(remaining / 2)); /* 上下对称空隙，最小 8px */
+                /* disc 在文档流里紧跟 header / 标签之后，margin-top 的基准是上一个流内元素的底边；
+                   topBound 已包含 header 的偏移(headerTop + headerH)，直接当 margin-top 用
+                   会把 header 高度重复算一次 → 封面/文字整体下坠、控件被挤出屏幕。
+                   这里扣除 header 底边偏移，让封面块真正在「switch ↔ 工具栏」之间垂直居中 */
+                var headerBottomOffset = Math.round(headerTop + headerH);
+                /* 标签同样在流内、基准也是 header 底边，需要同样的修正，
+                   否则标签会被绝对定位的「封面/相关」切换控件压住 */
+                var tagsTopGap = Math.max(0, topBound + gap - headerBottomOffset);
+                if (tagsEl) tagsEl.style.marginTop = tagsH ? (tagsTopGap + 'px') : '0px';
+                /* 有标签时：上方空隙已由标签的 margin-top 承担，disc 只需与标签保持固定间距 */
+                var discMarginTop = tagsH ? tagsGap : Math.max(0, topBound + gap - headerBottomOffset);
+                if (disc) {
+                    /* 写到 content 的自定义属性上：list-open 样式表可正常覆盖，收起后自动还原 */
+                    content.style.setProperty('--play-disc-mt', discMarginTop + 'px');
+                    content.style.setProperty('--play-disc-mb', cardTextGap + 'px');
+                }
+                if (info) {
+                    info.style.marginTop = '0';
+                    info.style.marginBottom = '0';
+                }
+                if (panel) {
+                    panel.style.marginTop = '';
+                    panel.style.marginBottom = '';
+                }
+            }
+        }
+
+        /* ========== 相关推荐：作者 + 同类目，结果合并去重随机全量 ========== */
+        var _relatedCache = {};
+        var _relatedToken = 0;
+        var _relatedAlbumKey = '';
+
+        /* 合并多组结果 → 去重（排除当前专辑）→ 随机洗牌 → 全量返回 */
+        function pickRelatedItems(lists, curId) {
+            var seen = {};
+            var order = [];
+            for (var s = 0; s < (lists || []).length; s++) {
+                var lst = lists[s] || [];
+                for (var i = 0; i < lst.length; i++) {
+                    var b = lst[i];
+                    if (!b || !b.id) continue;
+                    var bid = idToStr(b.id);
+                    if (!bid || seen[bid]) continue;
+                    if (curId && bid === curId) continue; /* 排除当前在播 */
+                    seen[bid] = true;
+                    order.push(b);
+                }
+            }
+            for (var k = order.length - 1; k > 0; k--) {
+                var j = Math.floor(Math.random() * (k + 1));
+                var tmp = order[k]; order[k] = order[j]; order[j] = tmp;
+            }
+            return order;
+        }
+
+        function renderPlayRelated(items) {
+            var listEl = document.getElementById('playRelatedList');
+            if (!listEl) return;
+            if (!items || !items.length) {
+                listEl.innerHTML = '<div class="play-related-empty">暂无相关推荐</div>';
+                return;
+            }
+            var defSrc = state.player.sourceId || state.sourceId;
+            var html = '';
+            for (var i = 0; i < items.length; i++) {
+                var b = items[i];
+                var cover = '';
+                try { cover = HTTP.proxyImage(b.cover) || ''; } catch (eP) { cover = b.cover || ''; }
+                var onErr = /xmcdn\.com/i.test(cover)
+                    ? 'xmCoverFallback(this)'
+                    : 'this.onerror=null;showCoverPlaceholder(this)';
+                html += '<div class="play-related-item" data-album-id="' + escapeHtml(b.id) + '"' +
+                    ' data-source="' + escapeHtml(b.source || defSrc) + '"' +
+                    ' data-entity-type="' + escapeHtml(b.entityType || '') + '">' +
+                    '<div class="play-related-cover">' +
+                    (cover ? '<img src="' + escapeHtml(cover) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="' + onErr + '">' : '') +
+                    '</div>' +
+                    '<div class="play-related-meta">' +
+                    '<div class="play-related-title">' + escapeHtml(b.title || '未知') + '</div>' +
+                    '<div class="play-related-author">' + escapeHtml(b.author || '') + '</div>' +
+                    '</div></div>';
+            }
+            listEl.innerHTML = html;
+            var nodes = listEl.querySelectorAll('.play-related-item');
+            for (var n = 0; n < nodes.length; n++) {
+                nodes[n].addEventListener('click', function () {
+                    var id = this.getAttribute('data-album-id');
+                    var src = this.getAttribute('data-source');
+                    var et = this.getAttribute('data-entity-type');
+                    if (id) openDetail(id, src, et);
+                });
+            }
+        }
+
+        /* 拉取并渲染相关推荐（作者名 + 同类目名，双路合并） */
+        function loadPlayRelated() {
+            var listEl = document.getElementById('playRelatedList');
+            var loading = document.getElementById('playTranscriptLoading');
+            if (!listEl) return;
+            var album = state.player.album || {};
+            var curId = idToStr(album.id || '');
+            var author = String(album.author || '').trim();
+            if (!author || author === '未知主播') author = '';
+            var category = String(album.categoryName || '').trim();
+            /* 类目名若太通用或过短，结果会跑偏，直接舍弃 */
+            if (category && (category.length <= 1 ||
+                /^(有声书|娱乐|综合|全部|其他|其它|分类)$/.test(category))) {
+                category = '';
+            }
+            if (!author && !category) {
+                if (loading) loading.style.display = 'none';
+                listEl.innerHTML = '<div class="play-related-empty">暂无相关推荐</div>';
+                return;
+            }
+            var srcId = album.source || state.player.sourceId || state.sourceId;
+            var albumKey = srcId + '::' + curId;
+            if (albumKey !== _relatedAlbumKey) {
+                _relatedAlbumKey = albumKey;
+                _relatedCache = {};
+            }
+            var token = ++_relatedToken;
+            if (loading) { loading.style.display = ''; loading.textContent = '正在获取相关推荐…'; }
+            listEl.innerHTML = '';
+            var adp = adapterById(srcId);
+
+            function trySearch(kw) {
+                if (!kw) return Promise.resolve([]);
+                var key = srcId + '::' + kw;
+                if (_relatedCache[key]) return Promise.resolve(_relatedCache[key]);
+                return adp.search(kw, 1, 30).then(function (r) {
+                    var list = (r && r.list) || [];
+                    _relatedCache[key] = list;
+                    return list;
+                }).catch(function () { return []; });
+            }
+            var tasks = [];
+            if (author) tasks.push(trySearch(author));
+            if (category && category !== author) tasks.push(trySearch(category));
+            if (!tasks.length) {
+                if (loading) loading.style.display = 'none';
+                listEl.innerHTML = '<div class="play-related-empty">暂无相关推荐</div>';
+                return;
+            }
+            Promise.all(tasks).then(function (results) {
+                if (token !== _relatedToken) return;
+                var items = pickRelatedItems(results, curId);
+                if (loading) loading.style.display = 'none';
+                renderPlayRelated(items); /* 全量渲染，多出则面板内滚动 */
+            }).catch(function () {
+                if (token !== _relatedToken) return;
+                if (loading) loading.style.display = 'none';
+                listEl.innerHTML = '<div class="play-related-empty">相关推荐获取失败</div>';
+            });
+        }
+
+        /* 更新切换控件（封面 / 相关 常驻显示） */
+        function updatePlayViewSwitch() {
+            var switchEl = document.getElementById('playViewSwitch');
+            if (!switchEl) return;
+            switchEl.classList.remove('hidden');
+            var tabRelated = document.getElementById('playViewTabRelated');
+            if (tabRelated) {
+                tabRelated.style.display = '';
+                tabRelated.style.opacity = '1';
+            }
+        }
+
+        /* 绑定切换事件 */
+        function initPlayViewSwitch() {
+            if (_playViewBound) return;
+            _playViewBound = true;
+            var switchEl = document.getElementById('playViewSwitch');
+            if (!switchEl) return;
+            switchEl.addEventListener('click', function (e) {
+                var btn = e.target.closest('.play-view-tab');
+                if (!btn) return;
+                var view = btn.getAttribute('data-view');
+                switchPlayView(view);
+            });
+        }
+
         function openPlayPage() {
             var playPage = document.getElementById('playPage');
             var bg = document.getElementById('playPageBg');
             var cover = document.getElementById('playPageCover');
+            /* 后打开的在上：播放页置顶，详情页退到其下。
+               修「从详情页点播放进不去播放页」——详情页被上一版永久抬到 9999，会挡住播放页(9998)。 */
+            try {
+                var dmEl = document.getElementById('detailModal');
+                if (playPage) playPage.style.zIndex = '9999';
+                if (dmEl) dmEl.style.zIndex = '9998';
+            } catch (eZ) {}
             var album = state.player.album;
             var curTrack = state.player.tracks && state.player.tracks[state.player.currentIndex];
             setDiscCover(resolvePlayerCover() || (album && album.cover) || (curTrack && curTrack.cover) || '');
@@ -11372,6 +13173,8 @@
             if (bookEl) bookEl.textContent = getAlbumDisplayTitle(album);
             var authorEl = document.getElementById('playPageAuthor');
             if (authorEl) authorEl.textContent = (album && album.author) || '未知主播';
+            /* 专辑标签：与详情页同一套数据，显示在封面卡片上方 */
+            try { refreshPlayPageTags(true); } catch (eTg) {}
             _playClosing = false;
             playPage.style.transition = 'none';
             playPage.style.transform = 'translate3d(0,100%,0)';
@@ -11394,6 +13197,13 @@
             try { updateQualityBtnUI(); } catch (eQ) {}
             try { updateSpeedBtnUI(); } catch (eS) {}
             try { updateTimerBtnUI(); } catch (eT) {}
+            /* 初始化封面/相关切换：打开播放页时固定回到封面，并同步 track 标记 */
+            try { initPlayViewSwitch(); } catch (eV) {}
+            _lastViewTrackId = String((track && (track.id || (track.raw && track.raw.trackId))) || '');
+            try { switchPlayView('cover'); } catch (eVc) {}
+            try { updatePlayViewSwitch(); } catch (eVs) {}
+            /* 播放页打开后 + 视图初始化完成后再测一次，确保 header 文字已写入后再钉 switch 位置 */
+            try { requestAnimationFrame(function () { try { syncPlayViewSwitchPosition(); } catch (eSync) {} }); } catch (eRAF) { try { syncPlayViewSwitchPosition(); } catch (eSync2) {} }
             renderPlayList();
             try {
                 setPlayListOpen(false, { skipLocate: true });
@@ -11417,6 +13227,14 @@
             if (_playClosing && !skipHistory) return;
             _playClosing = true;
             page.classList.remove('gesture-dragging');
+            /* 退出时收起章节列表：list-open 残留会让下次进入时封面按展开态过渡中测量，
+               导致卡片不在居中位置（点开列表后直接退出就会触发） */
+            try { setPlayListOpen(false, { skipLocate: true }); } catch (ePl) {}
+            /* 打开播放页时把详情页降到了 9998，关掉后恢复其默认层级，避免 z-index 残留 */
+            try {
+                var dmEl2 = document.getElementById('detailModal');
+                if (dmEl2 && dmEl2.style.zIndex === '9998') dmEl2.style.zIndex = '';
+            } catch (eZ2) {}
             var needAnim = true;
             try {
                 var tr = page.style.transform || '';
@@ -11431,7 +13249,7 @@
                 page.style.transition = 'none';
             }
             if (!skipHistory) syncHistoryOnClose('play');
-            else { _playHistPushed = false; setPageChrome(!!isAnyOverlayOpen()); }
+            else { resetOverlayFlag('play'); setPageChrome(!!isAnyOverlayOpen()); }
             setTimeout(function () {
                 page.classList.remove('active');
                 document.body.classList.remove('play-page-open');
@@ -11475,7 +13293,18 @@
                 if (authorEl) authorEl.textContent = (state.player.album && state.player.album.author) || '未知主播';
                 // 同步播放页封面（防止切集后封面丢失 / 失败后透明）
                 setDiscCover(resolvePlayerCover());
+                /* 仅在切集（track 变化）时才重置为封面视图。
+                   之前这里无条件重置，导致 seeking/seeked/play/pause 等任意音频事件
+                   （含拖动进度条）都会把视图强制拉回封面。 */
+                var tid = String(track.id || (track.raw && track.raw.trackId) || '');
+                if (tid !== _lastViewTrackId) {
+                    _lastViewTrackId = tid;
+                    try { switchPlayView('cover'); } catch (eV) {}
+                }
+                try { updatePlayViewSwitch(); } catch (eVs) {}
             }
+            /* 切专辑时刷新封面卡片上方的标签（同专辑会被 key 挡掉，无额外开销） */
+            try { refreshPlayPageTags(); } catch (eTg) {}
             updatePlayPauseIcon();
             updatePlayListActive();
         }
@@ -11588,6 +13417,8 @@
             /* 触发布局后再切 class，让 max-height / transform 过渡更稳 */
             if (panel) void panel.offsetHeight;
             page.classList.toggle('list-open', open);
+            /* 封面间距写在 content 的自定义属性(--play-disc-mt/mb)上：
+               展开时 list-open 样式表自动覆盖，收起时自动还原，无需手动清理 */
             if (btn) {
                 btn.classList.toggle('on', open);
                 btn.title = open ? '收起列表' : '播放列表';
@@ -11778,6 +13609,9 @@
 
         /* ========== 搜索 ========== */
         function openSearch() {
+            var _sp = document.getElementById('searchPage');
+            /* 已打开时不再重复 pushState（防返回栈残留多余条目） */
+            if (_sp && _sp.classList.contains('active')) return;
             document.getElementById('searchPage').classList.add('active');
             document.body.classList.add('search-active');
             pushOverlayHistory('search');
@@ -11801,7 +13635,7 @@
             document.body.classList.remove('search-active');
             state.isSearchMode = false;
             if (!skipHistory) syncHistoryOnClose('search');
-            else { _searchHistPushed = false; setPageChrome(!!isAnyOverlayOpen()); }
+            else { resetOverlayFlag('search'); setPageChrome(!!isAnyOverlayOpen()); }
             var input = document.getElementById('searchInput');
             if (input) input.value = '';
             var clear = document.getElementById('searchClear');
@@ -12023,7 +13857,7 @@
                         return;
                     }
                 } catch (err) {}
-                if (e.target.closest && e.target.closest('.play-page-controls, .progress-bar, .play-ctrl-btn, .play-main-btn, .play-page-back, .play-page-timer-btn, .play-page-speed-btn, .play-tool-btn, .play-tool-row, .play-sort-btn, .play-list-panel, .play-list-toggle, .timer-sheet')) {
+                if (e.target.closest && e.target.closest('.play-page-controls, .progress-bar, .play-ctrl-btn, .play-main-btn, .play-page-back, .play-page-timer-btn, .play-page-speed-btn, .play-tool-btn, .play-tool-row, .play-sort-btn, .play-list-panel, .play-list-toggle, .timer-sheet, .play-page-transcript, .play-related-list, .play-related-item')) {
                     dragging = false;
                     return;
                 }
@@ -12411,6 +14245,8 @@
         function openCkSettings() {
             var page = document.getElementById('settingsPage');
             if (!page) return;
+            /* 已打开时不重复 pushState */
+            if (page.classList.contains('active')) return;
             try {
                 applyTheme((localStorage.getItem(LS_THEME) || document.documentElement.getAttribute('data-theme') || 'dark'), false);
             } catch (eTh) {}
@@ -12418,20 +14254,67 @@
             page.classList.add('active');
             hideMiniForOverlay();
             pushOverlayHistory('settings');
-            _settingsHistPushed = true;
         }
+        /* ========== 离线预加载设置：开关 / 占用统计 / 清空 ========== */
+        function refreshPreloadCacheInfo() {
+            var info = document.getElementById('preloadCacheInfo');
+            if (!info) return;
+            if (!AudioCache.supported) { info.textContent = '当前环境不支持本地缓存'; return; }
+            AudioCache.stats().then(function (st) {
+                info.textContent = st.items ? (st.items + ' 集 · ' + fmtBytes(st.bytes)) : '暂无缓存';
+            }).catch(function () {
+                info.textContent = '暂无缓存';
+            });
+        }
+        function bindPreloadSettings() {
+            var sw = document.getElementById('preloadSwitch');
+            if (sw && !sw._bound) {
+                sw._bound = true;
+                try { sw.classList.toggle('on', getPreloadEnabled()); } catch (e) {}
+                sw.addEventListener('click', function () {
+                    var on = !getPreloadEnabled();
+                    setPreloadEnabled(on);
+                    sw.classList.toggle('on', on);
+                    showToast(on ? ('已开启离线预加载（缓存后续 ' + preloadCount() + ' 集）') : '已关闭离线预加载');
+                    if (on) {
+                        try { runPreloadQueue(); } catch (eQ) {}
+                        setTimeout(refreshPreloadCacheInfo, 1500);
+                    }
+                });
+            }
+            var clearBtn = document.getElementById('preloadClearBtn');
+            if (clearBtn && !clearBtn._bound) {
+                clearBtn._bound = true;
+                clearBtn.addEventListener('click', function () {
+                    if (!AudioCache.supported) { showToast('当前环境不支持本地缓存'); return; }
+                    clearBtn.disabled = true;
+                    AudioCache.clearAll().then(function () {
+                        clearBtn.disabled = false;
+                        showToast('已清空本地音频缓存');
+                        refreshPreloadCacheInfo();
+                    }, function () {
+                        clearBtn.disabled = false;
+                        showToast('清空失败，请重试');
+                    });
+                });
+            }
+            refreshPreloadCacheInfo();
+        }
+
         function openMinePage() {
             var page = document.getElementById('minePage');
             if (!page) return;
+            /* 已打开时不重复 pushState */
+            if (page.classList.contains('active')) return;
             try {
                 var apSw = document.getElementById('autoPlaySwitch');
                 if (apSw) apSw.classList.toggle('on', getAutoPlay());
             } catch (eAp) {}
             try { renderListenStats(); } catch (eSt) {}
+            try { refreshPreloadCacheInfo(); } catch (ePc) {}
             page.classList.add('active');
             hideMiniForOverlay();
             pushOverlayHistory('mine');
-            _mineHistPushed = true;
         }
         function closeSettings(skipHistory) {
             var page = document.getElementById('settingsPage');
@@ -12439,7 +14322,7 @@
             page.classList.remove('active');
             restoreMiniAfterOverlay();
             if (!skipHistory) syncHistoryOnClose('settings');
-            else { _settingsHistPushed = false; setPageChrome(!!isAnyOverlayOpen()); }
+            else { resetOverlayFlag('settings'); setPageChrome(!!isAnyOverlayOpen()); }
         }
         function closeMinePage(skipHistory) {
             var page = document.getElementById('minePage');
@@ -12447,7 +14330,7 @@
             page.classList.remove('active');
             restoreMiniAfterOverlay();
             if (!skipHistory) syncHistoryOnClose('mine');
-            else { _mineHistPushed = false; setPageChrome(!!isAnyOverlayOpen()); }
+            else { resetOverlayFlag('mine'); setPageChrome(!!isAnyOverlayOpen()); }
         }
         function getSourceCk(sid) {
             sid = sid || 'ximalaya';
@@ -12481,7 +14364,7 @@
             return val;
         }
         var CK_SOURCE_META = {
-            ximalaya: { label: '喜马拉雅 Cookie', tip: '登录 www.ximalaya.com → F12 → Network → 点任意请求 → 请求头里找到 Cookie，只复制 1&_token（建议再带 uid）。其余通用字段已内置，无需整段粘贴。', placeholder: '只需：1&_token=你的token\n可选：uid=你的用户ID' },
+            ximalaya: { label: '喜马拉雅 Cookie', tip: '登录 www.ximalaya.com → F12 → Network → 点任意请求 → 复制请求头完整 Cookie（含 1&_token、crystal、wfp 等）。付费精品必须用完整 Cookie，勿只贴 token。', placeholder: '粘贴完整 Cookie（推荐）\n或至少：1&_token=...; uid=...' },
             lrts: { label: '懒人听书 Cookie', tip: '浏览器登录 m.lrts.me 后，从 Network 请求头复制 Cookie（完整即可）。可提升已购/会员章节解析成功率。', placeholder: '粘贴懒人听书 Cookie…' },
             kuwo: { label: '酷我听书 Cookie', tip: '浏览器登录 kuwo.cn 后复制 Cookie。免费内容一般无需，可选。', placeholder: '粘贴酷我听书 Cookie…' },
             netease: { label: '网易听书 Cookie', tip: '浏览器登录 music.163.com 后复制 Cookie。可选配置。', placeholder: '粘贴网易听书 Cookie…' }
@@ -12506,12 +14389,7 @@
             if (input) {
                 input.placeholder = meta.placeholder || '粘贴该站源的 Cookie…';
                 /* 喜马：输入框只展示关键字段，完整 Cookie（含内置字段）仍保存在本地用于请求 */
-                if (sid === 'ximalaya' && ck) {
-                    input.value = (typeof _simplifyXmlyCookieForDisplay === 'function')
-                        ? _simplifyXmlyCookieForDisplay(ck) : ck;
-                } else {
-                    input.value = ck;
-                }
+                input.value = ck;
             }
             if (status) {
                 if (ck) {
@@ -12519,10 +14397,15 @@
                     var _ckVip = (sid === 'ximalaya') ? state.isVip : (state.vipMap && state.vipMap[sid]);
                     var extra = _ckVip ? ' · VIP 已激活' : '';
                     if (sid === 'ximalaya') {
-                        var simple = (typeof _simplifyXmlyCookieForDisplay === 'function')
-                            ? _simplifyXmlyCookieForDisplay(ck) : ck;
-                        var hasToken = /1&_token=/.test(simple) || (simple && simple.indexOf('=') < 0);
-                        status.textContent = (hasToken ? '已配置关键登录字段' : '已配置 Cookie') + extra;
+                        var hasToken = /1&_token=/.test(ck) || /1&token=/.test(ck);
+                        var rich = /crystal=/.test(ck) || /wfp=/.test(ck) || /HWWAFSESID=/.test(ck) || ck.split(';').length >= 5;
+                        if (hasToken && rich) {
+                            status.textContent = '已配置完整 Cookie（' + ck.length + ' 字符）' + extra;
+                        } else if (hasToken) {
+                            status.textContent = '仅有 token，付费精品建议贴完整 Cookie' + extra;
+                        } else {
+                            status.textContent = '已配置 Cookie（' + ck.length + ' 字符）' + extra;
+                        }
                     } else {
                         status.textContent = '已配置 Cookie（' + ck.length + ' 字符）' + extra;
                     }
@@ -12531,6 +14414,7 @@
                     status.textContent = '未配置 Cookie';
                 }
             }
+            setXmlyQrBtnVisible();
         }
         function saveXmlyCk() {
             var input = document.getElementById('xmlyCkInput');
@@ -12538,8 +14422,8 @@
             var val = (input && input.value) ? input.value.trim() : '';
             val = setSourceCk(sid, val);
             if (input && val) {
-                input.value = (sid === 'ximalaya' && typeof _simplifyXmlyCookieForDisplay === 'function')
-                    ? _simplifyXmlyCookieForDisplay(val) : val;
+                /* 保存完整 Cookie，不再精简展示，避免丢失 crystal/wfp 等风控字段 */
+                input.value = val;
             }
             refreshCkEditorUI();
             var name = ((CK_SOURCE_META[sid] || {}).label || sid).replace(' Cookie', '');
@@ -12555,6 +14439,147 @@
             refreshCkEditorUI();
             updateLogoVip();
             showToast('已清除 Cookie');
+        }
+
+        /* —— 喜马拉雅网页二维码登录 —— */
+        var _xmQrTimer = null;
+        var _xmQrId = null;
+        var _xmQrStop = false;
+        function stopXmlyQrPoll() {
+            _xmQrStop = true;
+            if (_xmQrTimer) { clearTimeout(_xmQrTimer); _xmQrTimer = null; }
+        }
+        function setXmlyQrBtnVisible() {
+            var btn = document.getElementById('xmlyCkQrBtn');
+            if (!btn) return;
+            var sid = state.ckEditSource || 'ximalaya';
+            btn.style.display = (sid === 'ximalaya') ? '' : 'none';
+            if (sid !== 'ximalaya') {
+                var panel = document.getElementById('xmlyQrPanel');
+                if (panel) panel.style.display = 'none';
+                stopXmlyQrPoll();
+            }
+        }
+        function closeXmlyQrPanel() {
+            stopXmlyQrPoll();
+            var panel = document.getElementById('xmlyQrPanel');
+            if (panel) panel.style.display = 'none';
+        }
+        function _xmQrSetStatus(text, cls) {
+            var el = document.getElementById('xmlyQrStatus');
+            if (!el) return;
+            el.textContent = text || '';
+            el.className = 'xmly-qr-status' + (cls ? (' ' + cls) : '');
+        }
+        function startXmlyQrLogin() {
+            var panel = document.getElementById('xmlyQrPanel');
+            var img = document.getElementById('xmlyQrImg');
+            var mask = document.getElementById('xmlyQrMask');
+            if (!panel || !img) return;
+            panel.style.display = 'block';
+            if (mask) mask.style.display = 'none';
+            stopXmlyQrPoll();
+            _xmQrStop = false;
+            _xmQrSetStatus('正在获取二维码…');
+            HTTP.request('https://passport.ximalaya.com/web/qrCode/gen?level=L', {
+                preferDirect: true,
+                headers: {
+                    'Accept': 'application/json, text/plain, */*',
+                    'Referer': 'https://www.ximalaya.com/',
+                    'Origin': 'https://www.ximalaya.com'
+                }
+            }).then(function (res) {
+                if (!res || res.ret !== 0 || !res.qrId || !res.img) {
+                    _xmQrSetStatus('获取二维码失败：' + ((res && (res.msg || res.message)) || '请稍后重试'), 'warn');
+                    return;
+                }
+                _xmQrId = res.qrId;
+                img.src = 'data:image/png;base64,' + res.img;
+                _xmQrSetStatus('请使用喜马拉雅 APP 扫一扫');
+                pollXmlyQrStatus(0);
+            }).catch(function (e) {
+                _xmQrSetStatus('获取二维码失败（网络/跨域）。可改用手动粘贴 Cookie。', 'warn');
+            });
+        }
+        function pollXmlyQrStatus(attempt) {
+            if (_xmQrStop || !_xmQrId) return;
+            if (attempt > 90) {
+                var mask = document.getElementById('xmlyQrMask');
+                if (mask) mask.style.display = 'flex';
+                _xmQrSetStatus('二维码已过期，请刷新', 'warn');
+                return;
+            }
+            var url = 'https://passport.ximalaya.com/web/qrCode/check/' +
+                encodeURIComponent(_xmQrId) + '/' + Date.now();
+            HTTP.request(url, {
+                preferDirect: true,
+                headers: {
+                    'Accept': 'application/json, text/plain, */*',
+                    'Referer': 'https://www.ximalaya.com/',
+                    'Origin': 'https://www.ximalaya.com'
+                }
+            }).then(function (res) {
+                if (_xmQrStop) return;
+                var ret = res && res.ret;
+                /* 0 = 成功；32000 等待扫码；其他常见：过期/取消 */
+                if (ret === 0) {
+                    _xmQrSetStatus('扫码成功，正在写入 Cookie…', 'ok');
+                    applyXmlyQrLoginResult(res);
+                    return;
+                }
+                if (ret === 32000 || ret === 32001) {
+                    if (attempt > 0 && attempt % 5 === 0) {
+                        _xmQrSetStatus('等待扫码中…（' + attempt + '）');
+                    }
+                    _xmQrTimer = setTimeout(function () { pollXmlyQrStatus(attempt + 1); }, 2000);
+                    return;
+                }
+                /* 过期等 */
+                var mask2 = document.getElementById('xmlyQrMask');
+                if (mask2) mask2.style.display = 'flex';
+                _xmQrSetStatus((res && (res.msg || res.message)) || ('状态 ' + ret + '，请刷新二维码'), 'warn');
+            }).catch(function () {
+                if (_xmQrStop) return;
+                _xmQrTimer = setTimeout(function () { pollXmlyQrStatus(attempt + 1); }, 2500);
+            });
+        }
+        function applyXmlyQrLoginResult(res) {
+            stopXmlyQrPoll();
+            var cookieStr = '';
+            try {
+                if (res && typeof res.cookie === 'string') cookieStr = res.cookie;
+                else if (res && res.data && typeof res.data.cookie === 'string') cookieStr = res.data.cookie;
+                else if (res && typeof res['1&_token'] === 'string') {
+                    cookieStr = '1&_token=' + res['1&_token'];
+                    if (res.uid) cookieStr += '; uid=' + res.uid;
+                }
+            } catch (e) {}
+            /* 尝试从响应里拼出 token */
+            if (!cookieStr && res) {
+                var tok = res.token || res.loginToken || (res.data && (res.data.token || res.data.loginToken));
+                var uid = res.uid || res.userId || (res.data && (res.data.uid || res.data.userId));
+                if (tok) {
+                    cookieStr = '1&_token=' + tok;
+                    if (uid) cookieStr += '; uid=' + uid;
+                }
+            }
+            if (cookieStr && cookieStr.length > 10) {
+                setSourceCk('ximalaya', cookieStr);
+                var input = document.getElementById('xmlyCkInput');
+                if (input) input.value = cookieStr;
+                refreshCkEditorUI();
+                checkXmlyVip();
+                _xmQrSetStatus('登录成功，Cookie 已写入', 'ok');
+                showToast('喜马拉雅扫码登录成功');
+                setTimeout(closeXmlyQrPanel, 1500);
+                return;
+            }
+            /* 跨域无法拿到 Set-Cookie 时：提示用户手动复制，并尝试打开官方站 */
+            _xmQrSetStatus('扫码已确认。因浏览器跨域限制无法自动写入完整 Cookie，请到官方网页登录后复制完整 Cookie 粘贴保存。', 'warn');
+            showToast('扫码成功，请手动复制官方 Cookie');
+            try {
+                window.open('https://www.ximalaya.com/', '_blank', 'noopener');
+            } catch (e2) {}
         }
 
         function updateLogoVip() {
@@ -12643,6 +14668,25 @@
             if (ckSave) ckSave.addEventListener('click', saveXmlyCk);
             var ckClear = document.getElementById('xmlyCkClear');
             if (ckClear) ckClear.addEventListener('click', clearXmlyCk);
+            var ckQrBtn = document.getElementById('xmlyCkQrBtn');
+            if (ckQrBtn && !ckQrBtn._bound) {
+                ckQrBtn._bound = true;
+                ckQrBtn.addEventListener('click', function () {
+                    state.ckEditSource = 'ximalaya';
+                    refreshCkEditorUI();
+                    startXmlyQrLogin();
+                });
+            }
+            var qrRefresh = document.getElementById('xmlyQrRefresh');
+            if (qrRefresh && !qrRefresh._bound) {
+                qrRefresh._bound = true;
+                qrRefresh.addEventListener('click', function () { startXmlyQrLogin(); });
+            }
+            var qrClose = document.getElementById('xmlyQrClose');
+            if (qrClose && !qrClose._bound) {
+                qrClose._bound = true;
+                qrClose.addEventListener('click', closeXmlyQrPanel);
+            }
             var themeDarkBtn = document.getElementById('themeDarkBtn');
             var themeLightBtn = document.getElementById('themeLightBtn');
             if (themeDarkBtn) themeDarkBtn.addEventListener('click', function () { applyTheme('dark'); showToast('已切换暗色主题'); });
@@ -12657,6 +14701,7 @@
                     showToast(on ? '已开启自动播放' : '已关闭自动播放');
                 });
             }
+            bindPreloadSettings();
             var tgCard = document.getElementById('tgContactCard');
             if (tgCard && !tgCard._tgBound) {
                 tgCard._tgBound = true;
@@ -12735,6 +14780,8 @@
             document.getElementById('playPlayBtn').addEventListener('click', togglePlay);
             document.getElementById('playPrevBtn').addEventListener('click', playPrev);
             document.getElementById('playNextBtn').addEventListener('click', playNext);
+            document.getElementById('playBack15Btn').addEventListener('click', playBack15);
+            document.getElementById('playForward15Btn').addEventListener('click', playForward15);
             /* 播放页排序按钮 */
             var playSortBtn = document.getElementById('playSortBtn');
             if (playSortBtn) playSortBtn.addEventListener('click', function () { toggleTrackSort(); });
@@ -12916,33 +14963,75 @@
             } catch (e) {}
         }
 
-        function isAnyOverlayOpen() {
-            var ts = document.getElementById('timerSheet');
-            if (ts && ts.classList.contains('show')) return 'timer';
-            var play = document.getElementById('playPage');
-            if (play && play.classList.contains('active')) return 'play';
-            var src = document.getElementById('sourceDropdown');
-            if (src && src.classList.contains('active')) return 'source';
-            var settings = document.getElementById('settingsPage');
-            if (settings && settings.classList.contains('active')) return 'settings';
-            var mine = document.getElementById('minePage');
-            if (mine && mine.classList.contains('active')) return 'mine';
-            var detail = document.getElementById('detailModal');
-            if (detail && detail.classList.contains('active')) return 'detail';
-            var search = document.getElementById('searchPage');
-            if (search && search.classList.contains('active')) return 'search';
+        /* 叠层是否处于打开态 */
+        function isOverlayActive(name) {
+            var el = null;
+            if (name === 'timer') el = document.getElementById('timerSheet');
+            else if (name === 'detail') el = document.getElementById('detailModal');
+            else if (name === 'play') el = document.getElementById('playPage');
+            else if (name === 'source') el = document.getElementById('sourceDropdown');
+            else if (name === 'settings') el = document.getElementById('settingsPage');
+            else if (name === 'mine') el = document.getElementById('minePage');
+            else if (name === 'search') el = document.getElementById('searchPage');
+            if (!el) return false;
+            if (name === 'timer') return el.classList.contains('show');
+            return el.classList.contains('active');
+        }
+
+        /* ===== 叠层打开顺序栈 =====
+           播放页与详情页的 z-index 是动态交换的（openXxx 里后开的置顶 9999、另一个退到 9998），
+           所以「谁在上」取决于打开顺序，不是固定层级。
+           返回时必须关最上面那一层，否则会先关掉被盖住、用户根本看不见的那层，
+           表现为「从详情页进播放页后要按两次返回才退出播放页」。 */
+        var _overlayOrder = [];
+        function overlayMarkOpen(name) {
+            for (var i = _overlayOrder.length - 1; i >= 0; i--) {
+                if (_overlayOrder[i] === name) { _overlayOrder.splice(i, 1); break; }
+            }
+            _overlayOrder.push(name); /* 移到栈顶 = 后开的在上 */
+        }
+        function overlayMarkClose(name) {
+            for (var i = _overlayOrder.length - 1; i >= 0; i--) {
+                if (_overlayOrder[i] === name) { _overlayOrder.splice(i, 1); break; }
+            }
+        }
+        /* 当前最上层（用户看得见）的叠层 */
+        function topOverlayName() {
+            /* 定时面板是瞬时 sheet，永远在最上层 */
+            if (isOverlayActive('timer')) return 'timer';
+            for (var i = _overlayOrder.length - 1; i >= 0; i--) {
+                if (isOverlayActive(_overlayOrder[i])) return _overlayOrder[i];
+            }
+            /* 无 history 条目的轻量叠层兜底 */
+            if (isOverlayActive('source')) return 'source';
             return null;
+        }
+
+        function isAnyOverlayOpen() {
+            return topOverlayName();
         }
 
         function pushOverlayHistory(name) {
             try {
-                _overlayHist++;
-                history.pushState({ tsOverlay: name, n: _overlayHist, qqm: 1 }, '', location.pathname + location.search + '#' + name);
-                if (name === 'play') _playHistPushed = true;
-                if (name === 'detail') _detailHistPushed = true;
-                if (name === 'search') _searchHistPushed = true;
-                if (name === 'settings') _settingsHistPushed = true;
-                if (name === 'mine') _mineHistPushed = true;
+                /* 防重：同一叠层未关闭前再次 open（错误重试、重复点击等）不再叠加 history 条目，
+                   否则返回栈会残留多余记录 —— 关闭时只 history.back 一次，
+                   多出来的条目要再按一次返回才消化掉（表现为「返回没反应/多按几次才退出」） */
+                var _alreadyPushed =
+                    (name === 'play' && _playHistPushed) ||
+                    (name === 'detail' && _detailHistPushed) ||
+                    (name === 'search' && _searchHistPushed) ||
+                    (name === 'settings' && _settingsHistPushed) ||
+                    (name === 'mine' && _mineHistPushed);
+                overlayMarkOpen(name); /* 无论是否新增 history 条目，都置顶该叠层 */
+                if (!_alreadyPushed) {
+                    _overlayHist++;
+                    history.pushState({ tsOverlay: name, n: _overlayHist, qqm: 1 }, '', location.pathname + location.search + '#' + name);
+                    if (name === 'play') _playHistPushed = true;
+                    if (name === 'detail') _detailHistPushed = true;
+                    if (name === 'search') _searchHistPushed = true;
+                    if (name === 'settings') _settingsHistPushed = true;
+                    if (name === 'mine') _mineHistPushed = true;
+                }
             } catch (e) {}
             setPageChrome(true);
         }
@@ -12954,6 +15043,7 @@
             if (flagName === 'search') { pushed = _searchHistPushed; _searchHistPushed = false; }
             if (flagName === 'settings') { pushed = _settingsHistPushed; _settingsHistPushed = false; }
             if (flagName === 'mine') { pushed = _mineHistPushed; _mineHistPushed = false; }
+            overlayMarkClose(flagName);
             if (pushed) {
                 _ignorePop = 1;
                 try { history.back(); } catch (e) {}
@@ -12963,43 +15053,26 @@
             }
             setPageChrome(!!isAnyOverlayOpen());
         }
+        /* 关闭由 popstate 触发时（条目已被系统消耗）只重置状态，不回退 history */
+        function resetOverlayFlag(flagName) {
+            if (flagName === 'play') _playHistPushed = false;
+            if (flagName === 'detail') _detailHistPushed = false;
+            if (flagName === 'search') _searchHistPushed = false;
+            if (flagName === 'settings') _settingsHistPushed = false;
+            if (flagName === 'mine') _mineHistPushed = false;
+            overlayMarkClose(flagName);
+        }
 
         function handleBack() {
-            var ts = document.getElementById('timerSheet');
-            if (ts && ts.classList.contains('show')) {
-                closeTimerSheet();
-                return true;
-            }
-            var play = document.getElementById('playPage');
-            if (play && play.classList.contains('active')) {
-                closePlayPage();
-                return true;
-            }
-            var src = document.getElementById('sourceDropdown');
-            if (src && src.classList.contains('active')) {
-                closeSourceSheet();
-                return true;
-            }
-            var settings = document.getElementById('settingsPage');
-            if (settings && settings.classList.contains('active')) {
-                closeSettings();
-                return true;
-            }
-            var mine = document.getElementById('minePage');
-            if (mine && mine.classList.contains('active')) {
-                closeMinePage();
-                return true;
-            }
-            var detail = document.getElementById('detailModal');
-            if (detail && detail.classList.contains('active')) {
-                closeDetail();
-                return true;
-            }
-            var search = document.getElementById('searchPage');
-            if (search && search.classList.contains('active')) {
-                closeSearch();
-                return true;
-            }
+            /* 关最上面那一层（后开的先关）：避免先关被盖住的层导致「按两次才退出」 */
+            var open = topOverlayName();
+            if (open === 'timer') { closeTimerSheet(); return true; }
+            if (open === 'detail') { closeDetail(); return true; }
+            if (open === 'play') { closePlayPage(); return true; }
+            if (open === 'source') { closeSourceSheet(); return true; }
+            if (open === 'settings') { closeSettings(); return true; }
+            if (open === 'mine') { closeMinePage(); return true; }
+            if (open === 'search') { closeSearch(); return true; }
             return false;
         }
         window.handleBack = handleBack;
@@ -13007,6 +15080,8 @@
         window.__onBackPressed = function () { return handleBack(); };
         window.onBackPressed = function () { return handleBack(); };
         window.closePlayPage = closePlayPage;
+        window.openPlayPage = openPlayPage;
+        window.openDetail = openDetail;
         window.closeDetail = closeDetail;
 
         /* ========== 初始化 ========== */
@@ -13074,6 +15149,8 @@
 
             /* 窗口尺寸变化时重新同步底栏高度 */
             window.addEventListener('resize', function () { syncBottomNavHeight(); });
+            /* 窗口尺寸变化时重新对齐「封面/相关」切换按钮位置（防 header 换行高度变化） */
+            window.addEventListener('resize', function () { try { syncPlayViewSwitchPosition(); } catch (eR) {} });
             /* 底栏尺寸变化时自动同步（字体加载、安全区变化等） */
             try {
                 var _navEl = document.getElementById('libBar');
@@ -13101,14 +15178,16 @@
                     setPageChrome(!!isAnyOverlayOpen());
                     return;
                 }
-                var open = isAnyOverlayOpen();
+                var open = topOverlayName();
                 if (open) {
+                    /* 条目已被系统返回消耗，skipHistory=true 只关 UI、不再回退 */
                     if (open === 'play') closePlayPage(true);
                     else if (open === 'detail') closeDetail(true);
                     else if (open === 'search') closeSearch(true);
                     else if (open === 'settings') closeSettings(true);
                     else if (open === 'mine') closeMinePage(true);
                     else if (open === 'source') closeSourceSheet();
+                    else if (open === 'timer') closeTimerSheet();
                     setPageChrome(!!isAnyOverlayOpen());
                 }
             });

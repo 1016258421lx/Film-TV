@@ -1397,7 +1397,7 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   'use strict';
 
   var API = 'https://api.bilibili.com';
-  var DEF_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+  var DEF_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
 
   function $(id) { return document.getElementById(id); }
   function setVal(id, v){ var e=$(id); if(e) e.value=v; }
@@ -1473,10 +1473,17 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
         var j = await req('https://api.bilibili.com/x/frontend/finger/spi', { responseType: 'json', timeout: 10, _skipBuvid: true });
         var d = j && j.data;
         var parts = [];
-        if (d && d.b_3) parts.push('buvid3=' + d.b_3);
+        // spi 返回的 b_3 已是完整 buvid3；部分环境要求带 infoc 后缀才过风控
+        if (d && d.b_3) {
+          var b3 = String(d.b_3);
+          if (b3.indexOf('infoc') === -1) b3 = b3 + 'infoc';
+          parts.push('buvid3=' + b3);
+        }
         if (d && d.b_4) parts.push('buvid4=' + d.b_4);
+        // 补一个 b_nut 时间戳，降低裸请求被判脚本的概率
+        parts.push('b_nut=' + Math.floor(Date.now() / 1000));
         buvidCache = { val: parts.join('; '), ts: Date.now() };
-      } catch (e) { /* 拿不到就算了，不阻塞正常请求——大不了还是 412，但不能因为这个卡住 */ }
+      } catch (e) { /* 拿不到就算了，不阻塞正常请求 */ }
       buvidPromise = null;
       return buvidCache.val;
     })();
@@ -1489,6 +1496,11 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     var headers = opt.headers || {};
     if (!headers['User-Agent']) headers['User-Agent'] = prefs.ua;
     if (!headers.Referer) headers.Referer = 'https://www.bilibili.com/';
+    // Origin 对 playurl 风控很关键：缺了容易直接 HTTP 412
+    if (!headers.Origin) headers.Origin = 'https://www.bilibili.com';
+    if (!headers['Sec-Fetch-Dest']) headers['Sec-Fetch-Dest'] = 'empty';
+    if (!headers['Sec-Fetch-Mode']) headers['Sec-Fetch-Mode'] = 'cors';
+    if (!headers['Sec-Fetch-Site']) headers['Sec-Fetch-Site'] = 'same-site';
     if (!headers.Cookie) {
       var cookieParts = [];
       if (prefs.cookie) cookieParts.push(prefs.cookie.replace(/;\s*$/, ''));
@@ -1606,6 +1618,7 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   var elList=$('list'), elState=$('state'), elMore=$('more'), elTabs=$('tabs'), elToast=$('toast');
 
   var TABS = [
+    { id:'recent',name:'最近',  type:'recent' },
     { id:'rec',   name:'推荐',  type:'rec' },
     { id:'pop',   name:'热门',  type:'pop' },
     { id:'rank',  name:'排行榜', type:'rank', rid:0 },
@@ -1620,8 +1633,8 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     { id:'movie', name:'影视',  type:'rank', rid:181 },
     { id:'music', name:'音乐',  type:'rank', rid:3 },
     { id:'live',  name:'直播',  type:'live' },
-    { id:'bangumi',name:'番剧', type:'pgc',  season:1 },   // 番剧 PGC
-    { id:'guochuang',name:'国创',type:'pgc', season:4 },   // 国产动画
+    { id:'bangumi',name:'番剧', type:'pgc',  season:1 },
+    { id:'guochuang',name:'国创',type:'pgc', season:4 },
     { id:'tvshow',name:'电视剧', type:'pgc', season:5 },
     { id:'movie2',name:'电影',  type:'pgc',  season:2 },
     { id:'doc',   name:'纪录片', type:'pgc',  season:3 },
@@ -1629,6 +1642,8 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   ];
 
   var view = { type:'rec', tab:'rec', rid:0, page:1, items:[], loading:false, seq:0, more:true, ep:'' };
+  var watchList = []; // 本站观看记录
+  var WATCH_MAX = 100;
   var subStack = [];
 
   function toast(m){ elToast.textContent=m; elToast.className='toast show'; clearTimeout(toast._t); toast._t=setTimeout(function(){elToast.className='toast';},2400); }
@@ -1673,28 +1688,44 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   function lazyScan(){ if(!lazyList.length)return; var h=window.innerHeight+400,i,img,r; for(i=lazyList.length-1;i>=0;i--){ img=lazyList[i]; r=img.getBoundingClientRect(); if(r.top<h&&r.bottom>-400){ lazyLoad(img); lazyList.splice(i,1); } } }
 
   /* ---------- 数据规整 ---------- */
-  function dur(sec){ sec=+sec||0; var m=Math.floor(sec/60),s=sec%60; if(m>=60){ var h=Math.floor(m/60); m=m%60; return h+':'+('0'+m).slice(-2)+':'+('0'+s).slice(-2); } return m+':'+('0'+s).slice(-2); }
-  function durStr(s){ if(!s)return ''; if(typeof s==='number')return dur(s); var p=String(s).split(':'); return s; }
+  function dur(sec){ sec=+sec||0; var m=Math.floor(sec/60),s=Math.floor(sec%60); if(m>=60){ var h=Math.floor(m/60); m=m%60; return h+':'+('0'+m).slice(-2)+':'+('0'+s).slice(-2); } return m+':'+('0'+s).slice(-2); }
+  /* 把 "MM:SS" / "H:MM:SS" / 秒数 统一成秒 */
+  function parseDur(raw){
+    if(raw==null || raw==='') return 0;
+    if(typeof raw==='number' && isFinite(raw)) return raw>0 ? Math.floor(raw) : 0;
+    var s=String(raw).trim();
+    if(/^\d+(\.\d+)?$/.test(s)) return Math.floor(+s);
+    var p=s.split(':');
+    if(p.length===2) return (parseInt(p[0],10)||0)*60 + (parseInt(p[1],10)||0);
+    if(p.length===3) return (parseInt(p[0],10)||0)*3600 + (parseInt(p[1],10)||0)*60 + (parseInt(p[2],10)||0);
+    return 0;
+  }
+  function durStr(s){ if(!s)return ''; if(typeof s==='number')return dur(s); return String(s); }
   function cnt(n){ n=+n||0; return n>=10000?((n/10000).toFixed(1)+'万'):String(n); }
 
   function toItem(v){
     // 兼容 推荐/热门/排行/搜索/UP主 各自的字段名
+    // 推荐流会混入 live / ogv / 广告，goto 不是 av 且没有 bvid 的直接跳过
+    if (v.goto && v.goto !== 'av' && !v.bvid && !v.bv_id) return null;
     var bvid = v.bvid || v.bv_id || (v.uri&&(v.uri.match(/BV[\w]+/)||[])[0]) || '';
     var aid = v.aid || v.id || v.param || 0;
+    // id 在推荐里可能是 roomid（直播），没有 bvid 时不要当视频 aid
+    if (!bvid && v.goto && v.goto !== 'av') return null;
     if(!bvid && !aid) return null;
     var pic = v.pic || v.cover || (v.owner&&v.owner.face) || '';
+    if(pic && pic.indexOf('//')===0) pic='https:'+pic;
     var title = (v.title||'').replace(/<[^>]+>/g,'');
     var author = (v.owner&&v.owner.name) || v.author || v.up_name || (v.owner_name||'') ;
-    var d = v.duration || (v.arc&&v.arc.duration) || v.len || 0;
+    // UP 投稿列表用 length="MM:SS"；推荐/热门用 duration 秒数
+    var sec = parseDur(v.duration != null ? v.duration : (v.arc&&v.arc.duration))
+           || parseDur(v.length) || parseDur(v.len) || 0;
     var vc = (v.stat&&(v.stat.view||v.stat.play)) || v.play || v.view || 0;
     return {
       kind:'video', bvid:bvid, aid:aid,
-      // 列表接口本来就带 cid，接住它。
-      // 不接的话每次起播都要先请求一次 view 拿 cid —— 白等一个往返，这就是起播慢的原因。
       cid: v.cid || 0,
-      _dur: (typeof v.duration === 'number' ? v.duration : 0),
+      _dur: sec,
       title:title, author:author,
-      dur: (typeof d==='number'?dur(d):durStr(d)),
+      dur: sec ? dur(sec) : '',
       views: cnt(vc)+'观看',
       pic: pic,
       mid: (v.owner&&v.owner.mid) || v.mid || 0
@@ -1723,8 +1754,15 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
 
   /* ---------- 各来源 ---------- */
   async function fetchRec(page){
-    var j = await apiWbi('/x/web-interface/index/top/feed/rcmd', { fresh_type:3, ps:20, fresh_idx:page, fresh_idx_1h:page, feed_version:'V8' });
-    return { items: collectVideos(j&&j.data&&j.data.item), more:true };
+    // 推荐流已迁到 /wbi/ 路径，旧路径常返回空或风控
+    var j = await apiWbi('/x/web-interface/wbi/index/top/feed/rcmd', {
+      fresh_type: 4, ps: 20, fresh_idx: page, fresh_idx_1h: page,
+      brush: page, feed_version: 'V8', homepage_ver: 1, web_location: 1430650
+    });
+    var items = collectVideos(j && j.data && j.data.item);
+    // 兼容部分返回把列表放在 items 字段的情况
+    if (!items.length && j && j.data && j.data.items) items = collectVideos(j.data.items);
+    return { items: items, more: true };
   }
   async function fetchPop(page){
     if(popSub==='weekly'){
@@ -1739,15 +1777,22 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
       var hj = await req(API+'/x/web-interface/popular/precious?page_size=100&page=1', { responseType:'json' });
       return { items: collectVideos(hj&&hj.data&&hj.data.list), more:false };
     }
-    var j = await req(API+'/x/web-interface/popular?ps=20&pn='+page, { responseType:'json' });
+    // popular 目前仍可不带 WBI，补上 web_location 更稳；偶发 -352 时改走签名
+    var j = await req(API+'/x/web-interface/popular?ps=20&pn='+page+'&web_location=333.934', { responseType:'json' });
+    if (j && (j.code === -352 || j.code === -412)) {
+      j = await apiWbi('/x/web-interface/popular', { ps: 20, pn: page, web_location: 333.934 });
+    }
     return { items: collectVideos(j&&j.data&&j.data.list), more: !(j&&j.data&&j.data.no_more) };
   }
   /* PGC（番剧/电影/电视剧等）。用索引接口按最近更新拉。
      season_type: 1番剧 2电影 3纪录片 4国创 5电视剧 7综艺 */
   async function fetchPgc(seasonType, page){
+    // order=3 追番人数；补全常用筛选参数，减少空列表
     var j = await req('https://api.bilibili.com/pgc/season/index/result' +
-      '?season_type='+seasonType+'&order=3&sort=0&page='+page+'&pagesize=24&type=1&st='+seasonType,
+      '?season_type='+seasonType+'&order=3&sort=0&page='+page+'&pagesize=24&type=1&st='+seasonType+
+      '&season_status=-1&season_month=-1&year=-1&style_id=-1&season_version=-1&is_finish=-1&copyright=-1',
       { responseType:'json' });
+    if (j && j.code && j.code !== 0) throw new Error(j.message || ('pgc code '+j.code));
     var list = j&&j.data&&j.data.list;
     return { items: collectPgc(list), more: !!(list && list.length>=24) };
   }
@@ -1774,8 +1819,66 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   }
 
   async function fetchRank(rid){
-    var j = await req(API+'/x/web-interface/ranking/v2?rid='+(rid||0)+'&type=all', { responseType:'json' });
-    return { items: collectVideos(j&&j.data&&j.data.list), more:false };
+    rid = rid || 0;
+    var list = null, lastErr = null, j;
+    var ensureBv = (B && B.ensureBuvid) ? B.ensureBuvid : function(){ return Promise.resolve(''); };
+
+    // 1) 主路径：ranking/v2 + WBI（最准的分区日榜）
+    try {
+      await ensureBv();
+      j = await apiWbi('/x/web-interface/ranking/v2', {
+        rid: rid, type: 'all', web_location: 333.934
+      });
+      if (j && (j.code === -352 || j.code === -412)) {
+        if (window.__bili) {
+          try { window.__bili.clearWbi && window.__bili.clearWbi(); window.__bili.clearBuvid && window.__bili.clearBuvid(); } catch (e) {}
+        }
+        await ensureBv();
+        j = await apiWbi('/x/web-interface/ranking/v2', {
+          rid: rid, type: 'all', web_location: 333.934
+        });
+      }
+      if (j && j.code === 0) {
+        list = (j.data && j.data.list) || j.data || [];
+      } else if (j) {
+        lastErr = new Error(j.message || ('code ' + j.code));
+      }
+    } catch (e) { lastErr = e; }
+
+    // 2) 备用：分区最新投稿（风控宽松，内容略旧）
+    if (!list || !list.length) {
+      try {
+        j = await req(API + '/x/web-interface/dynamic/region?ps=20&rid=' + rid, { responseType: 'json' });
+        if (j && j.code === 0 && j.data && j.data.archives) {
+          list = j.data.archives;
+        }
+      } catch (e) { lastErr = e; }
+    }
+
+    // 3) 再备：newlist
+    if (!list || !list.length) {
+      try {
+        j = await req(API + '/x/web-interface/newlist?ps=20&rid=' + rid, { responseType: 'json' });
+        if (j && j.code === 0 && j.data && j.data.archives) {
+          list = j.data.archives;
+        } else if (j && j.code === 0 && j.data && j.data.list) {
+          list = j.data.list;
+        }
+      } catch (e) { lastErr = e; }
+    }
+
+    // 4) 全站兜底：热门列表（至少不空）
+    if ((!list || !list.length) && rid === 0) {
+      try {
+        j = await req(API + '/x/web-interface/popular?ps=20&pn=1&web_location=333.934', { responseType: 'json' });
+        if (j && j.code === 0 && j.data && j.data.list) list = j.data.list;
+      } catch (e) { lastErr = e; }
+    }
+
+    if (!list || !list.length) {
+      throw lastErr || new Error('-352');
+    }
+    return { items: collectVideos(list), more: false };
   }
   async function fetchSearch(kw,page){
     var j = await apiWbi('/x/web-interface/wbi/search/type', { search_type:'video', keyword:kw, page:page, page_size:20 });
@@ -1886,12 +1989,124 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   }
 
   async function fetchUp(mid,page){
-    var j = await apiWbi('/x/space/wbi/arc/search', { mid:mid, ps:25, pn:page, order:'pubdate', platform:'web' });
-    var list = j&&j.data&&j.data.list&&j.data.list.vlist;
-    return { items: collectVideos(list), more:(list&&list.length>=25) };
+    mid = mid || 0;
+    page = page || 1;
+    var list = null, lastErr = null, j;
+
+    function sleepMs(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+    function is412(e, jj){
+      if(jj && (jj.code===-412 || jj.code===-352 || jj.code===412)) return true;
+      if(e && (e.status===412 || /412|-412|-352/.test(String(e.message||'')))) return true;
+      return false;
+    }
+    function parseDyn(jj){
+      var dynItems = (jj && jj.data && jj.data.items) || [];
+      var vids = [], di, it, major, arc;
+      for (di = 0; di < dynItems.length; di++) {
+        it = dynItems[di];
+        major = it && it.modules && it.modules.module_dynamic && it.modules.module_dynamic.major;
+        arc = major && (major.archive || major.ugc_season);
+        if (!arc) continue;
+        vids.push({
+          bvid: arc.bvid || '',
+          aid: arc.aid || arc.id || 0,
+          title: arc.title || '',
+          pic: arc.cover || arc.pic || '',
+          duration: arc.duration || 0,
+          owner: { name: (it.modules && it.modules.module_author && it.modules.module_author.name) || '', mid: mid },
+          stat: { view: (arc.stat && (arc.stat.play || arc.stat.view)) || 0 }
+        });
+      }
+      return vids;
+    }
+    async function trySpaceWbi(){
+      var dm = (typeof dmParams === 'function') ? dmParams() : {
+        dm_img_list:'[]', dm_img_str:'x', dm_cover_img_str:'x',
+        dm_img_inter:JSON.stringify({ds:[],wh:[3840,2160,0],of:[0,0,0]}), web_location:1550101
+      };
+      var params = {
+        mid: mid, ps: 25, pn: page, order: 'pubdate', platform: 'web',
+        tid: 0, keyword: '', order_avoided: true, web_location: 1550101,
+        dm_img_list: dm.dm_img_list, dm_img_str: dm.dm_img_str,
+        dm_cover_img_str: dm.dm_cover_img_str, dm_img_inter: dm.dm_img_inter
+      };
+      var signed = await B.wbiSign(params);
+      var q = [];
+      Object.keys(signed).forEach(function(k){ q.push(encodeURIComponent(k)+'='+encodeURIComponent(signed[k])); });
+      return await req(API + '/x/space/wbi/arc/search?' + q.join('&'), {
+        responseType: 'json', timeout: 20,
+        headers: { Referer: 'https://space.bilibili.com/' + mid, Origin: 'https://space.bilibili.com' }
+      });
+    }
+    async function tryDyn(){
+      return await req('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?host_mid=' + mid + '&offset=&page=' + page, {
+        responseType: 'json', timeout: 15,
+        headers: { Referer: 'https://space.bilibili.com/' + mid, Origin: 'https://space.bilibili.com' }
+      });
+    }
+    async function tryLegacy(){
+      return await req(API + '/x/space/arc/search?mid=' + mid + '&ps=25&pn=' + page + '&order=pubdate', {
+        responseType: 'json', timeout: 15,
+        headers: { Referer: 'https://space.bilibili.com/' + mid }
+      });
+    }
+
+    // 进页前预热指纹 + WBI key（避免第一次请求「裸奔」直接 412）
+    try{ if(B&&B.ensureBuvid) await B.ensureBuvid(); }catch(e){}
+    try{ await B.wbiSign({ _warmup: 1 }); }catch(e){}
+
+    // 最多 3 轮：主接口 → 动态 → 旧接口；遇 412 清缓存、等一会再来
+    var round;
+    for(round=0; round<3 && (!list || !list.length); round++){
+      if(round>0){
+        if(window.__bili){
+          try{ window.__bili.clearWbi&&window.__bili.clearWbi(); window.__bili.clearBuvid&&window.__bili.clearBuvid(); }catch(e){}
+        }
+        try{ if(B&&B.ensureBuvid) await B.ensureBuvid(); }catch(e){}
+        await sleepMs(350 + round*250);
+      }
+
+      // A) space wbi
+      try{
+        j = await trySpaceWbi();
+        if(j && j.code===0) list = j.data && j.data.list && j.data.list.vlist;
+        else if(j) lastErr = new Error(j.message || ('code '+j.code));
+      }catch(e){ lastErr=e; }
+
+      // B) 动态空间（常比 space 接口松）
+      if(!list || !list.length){
+        try{
+          j = await tryDyn();
+          if(j && j.code===0){
+            var vids = parseDyn(j);
+            if(vids.length) list = vids;
+          } else if(j) lastErr = new Error(j.message || ('dyn '+j.code));
+        }catch(e){ lastErr=e; }
+      }
+
+      // C) legacy
+      if(!list || !list.length){
+        try{
+          j = await tryLegacy();
+          if(j && j.code===0) list = j.data && j.data.list && j.data.list.vlist;
+          else if(j) lastErr = new Error(j.message || ('legacy '+j.code));
+        }catch(e){ lastErr=e; }
+      }
+
+      // 本轮已拿到就停
+      if(list && list.length) break;
+      // 非风控错误不必空转 3 轮
+      if(lastErr && !is412(lastErr, j)) break;
+    }
+
+    if (!list || !list.length) {
+      throw lastErr || new Error('HTTP 412');
+    }
+    return { items: collectVideos(list), more: (list.length >= 20) };
   }
 
   async function fetchPage(){
+    if(view.type==='recent') return fetchRecent(view.page);
     if(view.type==='rec')  return fetchRec(view.page);
     if(view.type==='pop')  return fetchPop(view.page);
     if(view.type==='rank') return fetchRank(view.rid);
@@ -1900,6 +2115,87 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     if(view.type==='up')   return fetchUp(view.mid, view.page);
     if(view.type==='live') return fetchLive(view.page);
     return { items:[], more:false };
+  }
+
+  async function loadWatch(){
+    try{
+      var r=await store.get('watch');
+      watchList = r ? JSON.parse(r) : [];
+      if(!Array.isArray(watchList)) watchList=[];
+    }catch(e){ watchList=[]; }
+  }
+  async function saveWatch(){
+    try{ await store.set('watch', JSON.stringify(watchList)); }catch(e){}
+  }
+  function watchKey(item){
+    if(!item) return '';
+    if(item.kind==='live' && item.roomid) return 'live_'+item.roomid;
+    if(item.kind==='pgc' && item.seasonId) return 'pgc_'+item.seasonId;
+    if(item.bvid) return 'bv_'+item.bvid;
+    if(item.aid) return 'av_'+item.aid;
+    return '';
+  }
+  async function pushWatch(item){
+    if(!item) return;
+    var key=watchKey(item);
+    if(!key) return;
+    // 只存展示需要的轻量字段
+    var entry={
+      key:key,
+      kind:item.kind||'video',
+      bvid:item.bvid||'',
+      aid:item.aid||0,
+      cid:item.cid||0,
+      seasonId:item.seasonId||0,
+      roomid:item.roomid||0,
+      title:item.title||'',
+      author:item.author||'',
+      pic:item.pic||'',
+      dur:item.dur||'',
+      _dur:item._dur||0,
+      mid:item.mid||0,
+      views:item.views||'',
+      ts:Date.now()
+    };
+    watchList = watchList.filter(function(x){ return x.key!==key; });
+    watchList.unshift(entry);
+    if(watchList.length>WATCH_MAX) watchList=watchList.slice(0,WATCH_MAX);
+    await saveWatch();
+  }
+  async function removeWatch(item){
+    var key = item && (item.key || watchKey(item));
+    if(!key) return;
+    watchList = watchList.filter(function(x){ return x.key!==key; });
+    await saveWatch();
+  }
+  async function fetchRecent(page){
+    page = page || 1;
+    if(!watchList.length){
+      try{ await loadWatch(); }catch(e){}
+    }
+    var ps=30;
+    var start=(page-1)*ps;
+    var slice=watchList.slice(start, start+ps);
+    var items=slice.map(function(w){
+      return {
+        kind: w.kind||'video',
+        bvid: w.bvid||'',
+        aid: w.aid||0,
+        cid: w.cid||0,
+        seasonId: w.seasonId||0,
+        roomid: w.roomid||0,
+        title: w.title||'',
+        author: w.author||'',
+        pic: w.pic||'',
+        dur: w.dur||'',
+        _dur: w._dur||0,
+        mid: w.mid||0,
+        views: w.views||'',
+        key: w.key||'',
+        _fromRecent: true
+      };
+    });
+    return { items: items, more: start+ps < watchList.length };
   }
 
   /* ---------- 渲染 ---------- */
@@ -1940,7 +2236,24 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     meta.appendChild(t); meta.appendChild(sub);
     btn.appendChild(thumb); btn.appendChild(meta);
     btn.addEventListener('click',function(){ if(item.kind==='video'){ openVideo(item); } else { play(item); } });
-    btn.addEventListener('contextmenu',function(e){ e.preventDefault(); if(item.mid) enterUp(item.mid, item.author); });
+    btn.addEventListener('contextmenu',function(e){
+      e.preventDefault();
+      // 最近 tab：长按静默清除记录，无提示
+      if(item._fromRecent || view.type==='recent'){
+        var cardEl=btn.parentNode;
+        removeWatch(item).then(function(){
+          view.items=view.items.filter(function(x){
+            return watchKey(x)!==watchKey(item) && x.key!==item.key;
+          });
+          if(cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
+          if(!view.items.length){
+            showState(moeEmpty('还没有记录', '看过的视频会出现在这里'));
+          }
+        });
+        return;
+      }
+      if(item.mid) enterUp(item.mid, item.author);
+    });
     return btn;
   }
   function renderInto(box,items){ var f=document.createDocumentFragment(),i,w; for(i=0;i<items.length;i++){ w=document.createElement('div'); w.className=(items[i].kind==='channel')?'card chan-card':'card'; w.appendChild(card(items[i])); f.appendChild(w); } box.appendChild(f); }
@@ -1965,7 +2278,10 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
       view.more=!!res.more;
       netDot(true); endLoading();
       if(reset) elList.replaceChildren();
-      if(!items.length && !view.items.length){ showState(moeEmpty('这里空空的…','换个关键词，或检查 Cookie / 代理')); }
+      if(!items.length && !view.items.length){
+        if(view.type==='recent') showState(moeEmpty('还没有记录','看过的视频会出现在这里 · 长按可清除'));
+        else showState(moeEmpty('这里空空的…','换个关键词，或检查 Cookie / 代理'));
+      }
       else { clearState(); view.items=view.items.concat(items); renderInto(elList,items); }
       renderMore();
     }catch(e){
@@ -2044,78 +2360,150 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     return u;
   }
 
-  var inlineMap={}, lazyEps={}, warming={}, pgcEps=[], resolving=false;
+  var inlineMap={}, lazyEps={}, warming={}, pgcEps=[], listEps=[], resolving=false;
   function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
-  window.__fmWebHomeInlineResolver=async function(ep){
-    var name=(ep&&ep.name)||'';
-    var url=(ep&&ep.url)||'';
 
-    var hit=inlineMap[name];
-    if(hit) return {url:hit.url,format:hit.format,headers:hit.headers||{}};
+  function epPageUrl(v){
+    if(v && v.bvid) return 'https://www.bilibili.com/video/'+v.bvid;
+    if(v && v.aid) return 'https://www.bilibili.com/video/av'+v.aid;
+    return '';
+  }
 
-    // 番剧：从 url 里的索引取集（meep://N），不靠名字匹配
-    var it=null, isPgc=false;
+  /* 从 episode 对象 / 名字 / 链接 反查视频项 */
+  function findEpItem(ep){
+    var name=(ep&&(ep.name||ep.label||ep.title))||'';
+    var url=(ep&&(ep.url||ep.pageUrl||ep.href))||'';
     var m=String(url).match(/meep:\/\/(\d+)/);
-    if(m){ it=pgcEps[parseInt(m[1],10)]; isPgc=true; }
-    // 普通投稿视频（"推送全部"生成的列表）：预热范围外的集，靠名字去 lazyEps 里现查
-    else if(lazyEps[name]){ it=lazyEps[name]; }
-
-    if(it){
-      // 同一集可能被并发请求两次（比如 App 预取 + 用户手动点），避免重复解析
-      if(warming[name]){
-        var waited=0;
-        while(warming[name] && waited<10000){ await sleep(200); waited+=200; }
-        if(inlineMap[name]) return {url:inlineMap[name].url,format:inlineMap[name].format,headers:inlineMap[name].headers||{}};
+    if(m){
+      var idx=parseInt(m[1],10);
+      if(listEps[idx]) return listEps[idx];
+      if(pgcEps[idx]) return pgcEps[idx];
+    }
+    var bm=String(url).match(/BV[\w]+/);
+    if(bm){
+      var bvid=bm[0], li;
+      for(li=0;li<listEps.length;li++) if(listEps[li]&&listEps[li].bvid===bvid) return listEps[li];
+      for(li=0;li<pgcEps.length;li++) if(pgcEps[li]&&pgcEps[li].bvid===bvid) return pgcEps[li];
+      var ks=Object.keys(lazyEps);
+      for(li=0;li<ks.length;li++) if(lazyEps[ks[li]]&&lazyEps[ks[li]].bvid===bvid) return lazyEps[ks[li]];
+    }
+    if(name && lazyEps[name]) return lazyEps[name];
+    if(name){
+      var keys=Object.keys(lazyEps), ki;
+      for(ki=0;ki<keys.length;ki++){
+        if(keys[ki].indexOf(name)===0 || name.indexOf(keys[ki])===0) return lazyEps[keys[ki]];
       }
-      warming[name]=1;
+    }
+    return null;
+  }
+
+  function cachePut(keys, r){
+    var i;
+    for(i=0;i<keys.length;i++) if(keys[i]) inlineMap[keys[i]]=r;
+  }
+
+  window.__fmWebHomeInlineResolver=async function(ep){
+    try{
+      var name=(ep&&(ep.name||ep.label||ep.title))||'';
+      var url=(ep&&(ep.url||ep.pageUrl||ep.href))||'';
+      var pageUrl=(ep&&ep.pageUrl)||url;
+      var keys=[name, url, pageUrl];
+      var ki;
+      for(ki=0;ki<keys.length;ki++){
+        if(keys[ki] && inlineMap[keys[ki]]) {
+          var hit=inlineMap[keys[ki]];
+          return { url:hit.url, format:hit.format||'', headers:hit.headers||{} };
+        }
+      }
+
+      var it=findEpItem(ep);
+      if(!it){
+        var bm2=String(pageUrl||url).match(/BV[\w]+/);
+        if(bm2) it={ kind:'video', bvid:bm2[0], aid:0, cid:0, title:name };
+      }
+      if(!it){
+        toast('找不到集：'+(name||url||'?').slice(0,36));
+        return null;
+      }
+
+      var lockKey=String(it.bvid||it.aid||name||url);
+      if(warming[lockKey]){
+        var waited=0;
+        while(warming[lockKey] && waited<18000){ await sleep(200); waited+=200; }
+        for(ki=0;ki<keys.length;ki++){
+          if(keys[ki] && inlineMap[keys[ki]]) {
+            var h2=inlineMap[keys[ki]];
+            return { url:h2.url, format:h2.format||'', headers:h2.headers||{} };
+          }
+        }
+      }
+      warming[lockKey]=1;
       try{
         var pd=await playInfo(it);
         if(pd.dash){
           var built=biliMpd(pd.dash, prefs.quality, prefs.codec);
           var r={ url:'data:application/dash+xml;base64,'+btoa(unescape(encodeURIComponent(built.xml))), format:'application/dash+xml', headers:{} };
-          inlineMap[name]=r;
-          lastPlay={ kind:'resolver', got:built.h+'P', dbg:isPgc?('cid='+it.cid+' aid='+it.aid):('bvid='+(it.bvid||it.aid)), time:new Date().toLocaleTimeString() };
+          cachePut(keys.concat([it.bvid]), r);
+          lastPlay={ kind:'resolver', got:built.h+'P', dbg:'bvid='+(it.bvid||'')+' cid='+(it.cid||''), time:new Date().toLocaleTimeString() };
           return r;
         }
         if(pd.durl){
           var r2={ url:gwUrl(pd.durl), headers:{'User-Agent':DEF_UA,Referer:'https://www.bilibili.com/'} };
-          inlineMap[name]=r2; return r2;
+          cachePut(keys.concat([it.bvid]), r2);
+          return r2;
         }
         toast('该集无可用流');
-      }catch(e){ toast('解析失败：'+(e&&e.message||e)); }
-      finally{ delete warming[name]; }
-    } else {
-      toast('找不到集：'+name);
+        return null;
+      }catch(e){
+        toast('解析失败：'+(e&&e.message||e));
+        return null;
+      }finally{
+        delete warming[lockKey];
+      }
+    }catch(e){
+      toast('解析异常：'+(e&&e.message||e));
+      return null;
     }
-    return null;
   };
 
-  /* 把某一集解析好塞进 inlineMap，供 resolver 同步取用 */
+  async function resolveToMedia(it){
+    if(!it) return null;
+    var pd=await playInfo(it);
+    if(pd.dash){
+      var built=biliMpd(pd.dash, prefs.quality, prefs.codec);
+      return { url:'data:application/dash+xml;base64,'+btoa(unescape(encodeURIComponent(built.xml))), format:'application/dash+xml', headers:{} };
+    }
+    if(pd.durl){
+      return { url:gwUrl(pd.durl), headers:{'User-Agent':DEF_UA,Referer:'https://www.bilibili.com/'} };
+    }
+    return null;
+  }
+
   async function warmOne(it, name){
-    if(!it || warming[name] || inlineMap[name]) return;
+    if(!it || !name || warming[name] || inlineMap[name]) return null;
     warming[name]=1;
     try{
-      var pd=await playInfo(it);
-      if(pd.dash){
-        var built=biliMpd(pd.dash, prefs.quality, prefs.codec);
-        inlineMap[name]={ url:'data:application/dash+xml;base64,'+btoa(unescape(encodeURIComponent(built.xml))), format:'application/dash+xml', headers:{} };
-      } else if(pd.durl){
-        inlineMap[name]={ url:gwUrl(pd.durl), headers:{'User-Agent':DEF_UA,Referer:'https://www.bilibili.com/'} };
+      var r=await resolveToMedia(it);
+      if(r){
+        inlineMap[name]=r;
+        if(it.bvid) inlineMap[it.bvid]=r;
+        var pu=epPageUrl(it);
+        if(pu) inlineMap[pu]=r;
       }
-    }catch(e){}
-    delete warming[name];
+      return r;
+    }catch(e){ return null; }
+    finally{ delete warming[name]; }
   }
 
   function epName(v,i){
     var n=String(i+1); if(n.length<2)n='0'+n;
-    var t=(v.title||'').replace(/[#$]/g,' ').replace(/\s+/g,' ').trim();   // # $ 会截断多集串
-    if(t.length>42)t=t.slice(0,42)+'…';
+    var t=(v.title||'').replace(/[#$]/g,' ').replace(/\s+/g,' ').trim();
+    if(t.length>40)t=t.slice(0,40)+'…';
     return t?(n+' '+t):n;
   }
 
-  /* itemsOverride：不传就用 view.items（"推送全部"按钮走这条，行为不变）。
-     chanNameOverride：不传就用 subStack 里的 UP 主名。
-     currentItem：点开的是哪一条，标成 mark 并优先解析，起播秒开；不传就还是第一条。 */
+  /* 按官方 vodInline 协议：url/pageUrl 用真实 bilibili 链接；当前集写 mediaUrl 即播；
+     其余 resolve:true，切集时回调 resolver，靠 BV 号反查，不依赖易变标题。 */
   async function pushList(itemsOverride, chanNameOverride, currentItem){
     if(!native||!fm.vodInline){ toast('这个 App 版本不支持多集推送'); return; }
     var srcItems = itemsOverride || view.items;
@@ -2123,9 +2511,10 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     if(!vids.length){ toast('列表里没有可播的视频'); return; }
     if(vids.length>200) vids=vids.slice(0,200);
 
-    lazyEps={}; inlineMap={};
-    var eps=vids.map(function(v,i){ var nm=epName(v,i); lazyEps[nm]=v; return { name:nm, url:'https://www.bilibili.com/video/'+(v.bvid||('av'+v.aid)), resolve:true }; });
+    // 确保 resolver 仍是我们的实现（避免其它路径覆盖）
+    // 不在这里重绑函数体，只保证 list 数据就绪
 
+    lazyEps={}; inlineMap={}; listEps=[];
     var markIdx=0, i;
     if(currentItem){
       for(i=0;i<vids.length;i++){
@@ -2133,27 +2522,124 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
       }
     }
 
-    // 先解析标记的这一集，起播即高画质
-    try{ await warmOne(vids[markIdx], eps[markIdx].name); }catch(e){}
+    // 先建全集骨架
+    var eps=vids.map(function(v,i){
+      var nm=epName(v,i);
+      var pu=epPageUrl(v);
+      lazyEps[nm]=v;
+      listEps[i]=v;
+      return { name:nm, url:pu, pageUrl:pu, resolve:true };
+    });
+
+    // 推送前同步预解析约 10 集（当前 + 后 7 + 前 2），写入 mediaUrl，切邻近集直接播
+    toast('正在解析前 10 集…');
+    var preOrder=[], seen={};
+    function addPre(ix){ if(ix>=0 && ix<vids.length && !seen[ix]){ seen[ix]=1; preOrder.push(ix); } }
+    addPre(markIdx);
+    for(i=1;i<=7;i++) addPre(markIdx+i);
+    for(i=1;i<=2;i++) addPre(markIdx-i);
+    // 不足 10 再往两侧补
+    for(i=0;i<vids.length && preOrder.length<10;i++) addPre(i);
+
+    var mediaMap={};
+    function putCache(idx, med){
+      if(!med) return;
+      mediaMap[idx]=med;
+      inlineMap[eps[idx].name]=med;
+      if(vids[idx].bvid) inlineMap[vids[idx].bvid]=med;
+      if(eps[idx].url) inlineMap[eps[idx].url]=med;
+      if(eps[idx].pageUrl) inlineMap[eps[idx].pageUrl]=med;
+    }
+    for(i=0;i<preOrder.length;i++){
+      try{
+        var med=await resolveToMedia(vids[preOrder[i]]);
+        putCache(preOrder[i], med);
+      }catch(e){}
+      if(i<preOrder.length-1) await sleep(160);
+    }
+
+    for(i=0;i<eps.length;i++){
+      if(mediaMap[i]){
+        eps[i].mediaUrl=mediaMap[i].url;
+        eps[i].format=mediaMap[i].format||'';
+        if(mediaMap[i].headers) eps[i].headers=mediaMap[i].headers;
+        eps[i].resolve=false;
+      }
+    }
 
     var cur=subStack.length?subStack[subStack.length-1]:null;
-    var chanName = chanNameOverride || (cur&&cur.name) || vids[markIdx].author || 'bilibili';
+    var mid = (view.type==='up' && view.mid) || (currentItem && currentItem.mid) || (vids[markIdx] && vids[markIdx].mid) || (cur && cur.mid) || 0;
+    var upInfo=null;
+    if(mid){ try{ upInfo=await fetchUpInfo(mid); }catch(e){} }
+
+    var chanName = (upInfo && upInfo.name) || chanNameOverride || (cur&&cur.name) || vids[markIdx].author || 'bilibili';
+    var facePic = (upInfo && upInfo.face) ? resUrl(upInfo.face, 320, 320) : '';
+    var coverPic = resUrl(vids[markIdx].pic||'', 480, 270);
+    var poster = facePic || coverPic;
+    var remarks = '';
+    if(upInfo){
+      var rb=[];
+      if(upInfo.fans) rb.push(formatFans(upInfo.fans));
+      if(upInfo.videos) rb.push(upInfo.videos+'投稿');
+      else rb.push(eps.length+'集');
+      remarks = rb.join(' · ');
+    } else {
+      remarks = eps.length+'集';
+    }
+    var content = upContentText(upInfo, '共 '+eps.length+' 个视频 · 来自 bilibili');
+    var readyCnt=Object.keys(mediaMap).length;
+
     await fm.vodInline({
-      vod_id:'bililist_'+(vids[markIdx].bvid||vids[markIdx].aid||Date.now()),
-      vod_name:chanName,
-      vod_pic:'',
+      vod_id:'bililist_'+(mid || vids[markIdx].bvid || vids[markIdx].aid || Date.now()),
+      vod_name: chanName,
+      title: chanName,
+      vod_pic: poster,
+      pic: poster,
+      wallPic: coverPic || facePic,
+      vod_remarks: remarks,
+      remarks: remarks,
+      vod_content: content,
+      content: content,
+      vod_actor: chanName,
+      actor: chanName,
+      vod_director: (upInfo && upInfo.official) || 'bilibili UP主',
+      director: (upInfo && upInfo.official) || 'bilibili UP主',
+      type_name: 'UP主投稿',
+      vod_year: '',
+      vod_area: '哔哩哔哩',
+      area: '哔哩哔哩',
       vod_play_from:'最高画质',
       mark:eps[markIdx].name,
       episodes:eps
     });
-    toast('已推送 '+eps.length+' 集');
+    toast('已推送 '+eps.length+' 集 · 已解析 '+readyCnt+' 集，其余后台补全');
 
-    // 后台把标记那集前后几个也热上
+    // 后台按批解析剩余全集进 inlineMap：切集时 resolver 直接命中缓存，几乎秒开
+    // 播放器已打开后无法再改 mediaUrl，但缓存命中等价于「补上」
     (async function(){
-      var order=[], j;
-      for(j=markIdx+1;j<eps.length && order.length<6;j++) order.push(j);
-      for(j=0;j<markIdx && order.length<6;j++) order.push(j);
-      for(j=0;j<order.length;j++){ await warmOne(vids[order[j]], eps[order[j]].name); }
+      var rest=[], j;
+      // 从当前附近往外扩，优先用户最可能点的
+      for(j=0;j<eps.length;j++){
+        if(!mediaMap[j]) rest.push(j);
+      }
+      rest.sort(function(a,b){
+        return Math.abs(a-markIdx) - Math.abs(b-markIdx);
+      });
+      var done=readyCnt, fail=0;
+      for(j=0;j<rest.length;j++){
+        try{
+          var r=await warmOne(vids[rest[j]], eps[rest[j]].name);
+          if(r) done++; else fail++;
+        }catch(e){ fail++; }
+        await sleep(220);
+        // 每解析完 10 集轻提示一次（不打扰播放）
+        if((j+1)%10===0){
+          try{ toast('后台已解析 '+done+'/'+eps.length); }catch(e){}
+        }
+      }
+      if(rest.length){
+        try{ toast('全部解析完成 '+done+'/'+eps.length+(fail?(' · 失败'+fail):'')); }catch(e){}
+      }
     })();
   }
 
@@ -2226,38 +2712,57 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     }
   }
 
-  /* 点开一条视频的统一入口：先探一下这个稿件是不是分P或者合集，
-     是的话把分P/合集的每一集都推过去，起播那集标记好；
-     都不是的话（绝大多数普通单 P 视频）走原来的逻辑：推这位 UP 主的整个投稿列表。 */
+  /* 点开一条视频：分P/合集走多集推送；普通单P直接解析起播（更快、少踩风控）。
+     长按/右键仍可进 UP 主页。playing 用 finally 保证不会卡死导致「点了没反应」。 */
   async function openVideo(item){
-    if(playing) return;
+    if(playing){ toast('正在处理，稍等…'); return; }
     playing=true;
     try{
-      var detail = await fetchViewDetail(item);
+      try{ await pushWatch(item); }catch(e){}
+      var detail = null;
+      try{ detail = await fetchViewDetail(item); }catch(e){}
       if(detail && detail.ugc_season){
         var seps = buildSeasonEpisodes(detail);
         if(seps.length>1){
           await pushList(seps, detail.ugc_season.title||item.author||'合集', item);
-          playing=false; return;
+          return;
         }
       }
       if(detail && detail.pages && detail.pages.length>1){
         var peps = buildPartEpisodes(detail);
         await pushList(peps, detail.title||item.title||item.author||'bilibili', item);
-        playing=false; return;
+        return;
       }
-    }catch(e){ /* 探测失败就当普通单 P 处理，不影响原流程 */ }
-    playing=false;
-    await pushWholeChannel(item);
+      // 普通单 P：直接起播，不再整页推 UP 投稿（减少一次请求、少触发 412）
+      if(detail){
+        if(detail.cid && !item.cid) item.cid = detail.cid;
+        if(detail.bvid && !item.bvid) item.bvid = detail.bvid;
+        if(detail.aid && !item.aid) item.aid = detail.aid;
+        if(detail.duration) item._dur = detail.duration;
+      }
+      await playCore(item);
+    }catch(e){
+      toast('打开失败：'+(e&&e.message||e));
+    }finally{
+      playing=false;
+    }
   }
 
   var playing=false, lastPlay=null, liveDbg='';
   async function play(item){
-    if(playing)return; playing=true;
+    if(playing){ toast('正在处理，稍等…'); return; }
+    playing=true;
+    try{
+      try{ await pushWatch(item); }catch(e){}
+      await playCore(item);
+    }
+    finally{ playing=false; }
+  }
+  async function playCore(item){
     var step='开始';
     try{
-      if(item.kind==='live'){ await playLive(item); playing=false; return; }
-      if(item.kind==='pgc'){ await playPgc(item); playing=false; return; }
+      if(item.kind==='live'){ await playLive(item); return; }
+      if(item.kind==='pgc'){ await playPgc(item); return; }
 
       step='取 playInfo';
       var pd = await playInfo(item);
@@ -2276,7 +2781,23 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
         step='推给播放器';
         if(native&&fm.vodInline){
           var art=resUrl(item.pic||'', 1280, 720), wp=wallOf(item);
-          await fm.vodInline({ vod_id:'bili_'+item.bvid, vod_name:item.author||item.title||'bilibili', vod_pic:art, wallPic:wp, vod_play_from:name, mark:epName, episodes:[{name:epName,url:uri,resolve:true,pageUrl:'https://www.bilibili.com/video/'+item.bvid}] });
+          var singleContent = (item.author ? ('UP：'+item.author+'\n') : '') + (item.title||'') + (item.views ? ('\n'+item.views) : '');
+          await fm.vodInline({
+            vod_id:'bili_'+item.bvid,
+            vod_name: item.title || item.author || 'bilibili',
+            title: item.title || item.author || 'bilibili',
+            vod_pic: art, pic: art, wallPic: wp,
+            vod_actor: item.author || '',
+            actor: item.author || '',
+            vod_remarks: item.views || item.dur || '',
+            remarks: item.views || item.dur || '',
+            vod_content: singleContent,
+            content: singleContent,
+            type_name: 'bilibili',
+            vod_area: '哔哩哔哩',
+            vod_play_from: name, mark: epName,
+            episodes:[{ name:epName, url:uri, mediaUrl:uri, format:'application/dash+xml', resolve:false, pageUrl:'https://www.bilibili.com/video/'+item.bvid }]
+          });
         } else if(native&&fm.play){
           var artP=resUrl(item.pic||'', 1280, 720); await fm.play(uri, item.title||'bilibili', { pic:artP, wallPic:wallOf(item) });
         } else { window.open('https://www.bilibili.com/video/'+item.bvid,'_blank'); }
@@ -2293,7 +2814,6 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
       lastPlay={ kind:'错误', step:step, msg:e.message, time:new Date().toLocaleTimeString() };
       toast('['+step+'] '+e.message);
     }
-    playing=false;
   }
 
   async function playLive(item){
@@ -2419,8 +2939,12 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
         var built = biliMpd(pd.dash, prefs.quality, prefs.codec);
         var uri='data:application/dash+xml;base64,'+btoa(unescape(encodeURIComponent(built.xml)));
         var art=resUrl(item.pic||''), wp=wallOf(item);
-        inlineMap={}; window.__fmWebHomeInlineResolver=function(ep2){ return {url:uri,format:'application/dash+xml',headers:{}}; };
-        await fm.vodInline({ vod_id:'pgc1_'+item.seasonId, vod_name:vitem.title, vod_pic:art, wallPic:wp, vod_play_from:'最高画质', mark:built.h+'P', episodes:[{name:built.h+'P',url:uri,resolve:true}] });
+        // 单集：直接 mediaUrl，不要覆盖全局 __fmWebHomeInlineResolver（否则后续多集切集会坏）
+        await fm.vodInline({
+          vod_id:'pgc1_'+item.seasonId, vod_name:vitem.title, vod_pic:art, wallPic:wp,
+          vod_play_from:'最高画质', mark:built.h+'P',
+          episodes:[{ name:built.h+'P', url:uri, mediaUrl:uri, format:'application/dash+xml', resolve:false }]
+        });
         toast(built.h+'P');
       } else if(pd.durl){
         var artD=resUrl(item.pic||'');
@@ -2430,17 +2954,51 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   }
 
   async function pgcInline(item, eps){
-    lazyEps={}; inlineMap={}; pgcEps=[];
+    lazyEps={}; inlineMap={}; pgcEps=[]; listEps=[];
     var list=eps.map(function(ep,i){
       var nm=(ep.title||String(i+1))+(ep.long_title?(' '+ep.long_title):'');
       nm=nm.replace(/[#$]/g,' ').slice(0,42);
-      pgcEps[i]={ kind:'video', aid:ep.aid, bvid:ep.bvid||'', cid:ep.cid, _dur:(ep.duration?Math.round(ep.duration/1000):0), title:nm, pic:item.pic, epId:ep.id };
-      // url 里塞索引，resolver 从 url 反查，不靠名字
-      return { name:nm, url:'meep://'+i, resolve:true };
+      var vit={ kind:'video', aid:ep.aid, bvid:ep.bvid||'', cid:ep.cid, _dur:(ep.duration?Math.round(ep.duration/1000):0), title:nm, pic:item.pic, epId:ep.id };
+      pgcEps[i]=vit; listEps[i]=vit; lazyEps[nm]=vit;
+      var pu=ep.bvid ? ('https://www.bilibili.com/video/'+ep.bvid) : ('meep://'+i);
+      return { name:nm, url:pu, pageUrl:pu, resolve:true };
     });
     var art=resUrl(item.pic||'', 1280, 720);
+    // 预解析第一集
+    try{
+      var m0=await resolveToMedia(pgcEps[0]);
+      if(m0){
+        list[0].mediaUrl=m0.url; list[0].format=m0.format||''; list[0].resolve=false;
+        if(m0.headers) list[0].headers=m0.headers;
+        inlineMap[list[0].name]=m0;
+      }
+    }catch(e){}
     await fm.vodInline({ vod_id:'pgc_'+item.seasonId, vod_name:item.title, vod_pic:art, wallPic:(prefs.wall==='pic'?art:''), vod_play_from:'番剧', mark:list[0].name, episodes:list });
     toast('已推送 '+list.length+' 集');
+  }
+
+  /* 设备指纹假数据：B 站 wbi/playurl 现在强制校验 dm_* 参数，
+     缺了直接 HTTP 412 / code -412。对齐 yt-dlp 的哑值实现即可。 */
+  function dmParams(){
+    function rnd(n){ return Math.floor(Math.random()*n); }
+    function b64rand(minLen, maxLen){
+      var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      var len=minLen+rnd(maxLen-minLen+1), s='', i;
+      for(i=0;i<len;i++) s+=chars.charAt(rnd(chars.length));
+      return s.replace(/=+$/,'');
+    }
+    // wh / of 模拟分辨率与滚动偏移（公式来自 bili-user-fingerprint）
+    var w=1920, h=1080, r1=rnd(114);
+    var wh=[2*w+2*h+3*r1, 4*w-h+r1, r1];
+    var st=10+rnd(90), sl=0, r2=rnd(514);
+    var of=[3*st+2*sl+r2, 4*st-4*sl+2*r2, r2];
+    return {
+      dm_img_list: '[]',
+      dm_img_str: b64rand(16, 64),
+      dm_cover_img_str: b64rand(32, 128),
+      dm_img_inter: JSON.stringify({ds:[],wh:wh,of:of}).replace(/\s+/g,''),
+      web_location: 1315873
+    };
   }
 
   async function playInfo(item){
@@ -2450,45 +3008,169 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
       var key=item.bvid?('bvid='+item.bvid):('aid='+item.aid);
       var vj=await req(API+'/x/web-interface/view?'+key, {responseType:'json'});
       cid=vj&&vj.data&&vj.data.cid;
-      if(vj&&vj.data){ item._dur=vj.data.duration; if(!item.bvid&&vj.data.bvid) item.bvid=vj.data.bvid; }
+      if(vj&&vj.data){ item._dur=vj.data.duration; if(!item.bvid&&vj.data.bvid) item.bvid=vj.data.bvid; if(!item.aid&&vj.data.aid) item.aid=vj.data.aid; }
     }
     if(!cid) throw new Error('拿不到 cid');
 
-    // platform=pc + try_look=1（未登录时）可显著降低个别视频 -412 / 空流概率
-    var p={ cid:cid, qn:prefs.quality, fnval:4048, fnver:0, fourk:1, platform:'pc', otype:'json' };
-    if(item.bvid) p.bvid=item.bvid; else p.avid=item.aid;
-    if(!prefs.cookie) p.try_look=1;
+    // 先预热设备指纹，降低 412
+    try{ if(B&&B.ensureBuvid) await B.ensureBuvid(); }catch(e){}
 
-    var j, attempt=0, lastErr;
-    while(attempt<2){
-      attempt++;
-      try{
-        j=await apiWbi('/x/player/wbi/playurl', p);
-        if(j && j.code===-412){
-          // 风控：清一次 WBI / buvid 缓存再重试
-          if(window.__bili){ try{ window.__bili.clearWbi&&window.__bili.clearWbi(); window.__bili.clearBuvid&&window.__bili.clearBuvid(); }catch(e){} }
-          lastErr=new Error('风控 -412，重试中');
-          continue;
+    function baseParams(qn, fnval){
+      var p={ cid:cid, qn: qn||prefs.quality||80, fnval: fnval!=null?fnval:4048, fnver:0, fourk:1, platform:'pc', otype:'json', high_quality:1 };
+      if(item.bvid) p.bvid=item.bvid; else p.avid=item.aid;
+      if(!prefs.cookie) p.try_look=1;
+      return p;
+    }
+    function isRisk(j, e){
+      if(e && (e.status===412 || /412|-412|-352/.test(String(e.message||'')))) return true;
+      if(j && (j.code===-412 || j.code===-352 || j.code===412)) return true;
+      return false;
+    }
+
+    var j=null, lastErr=null, d=null;
+
+    // —— 路径 1：旧版 playurl（很多环境下比 wbi 更不易 412）——
+    async function tryLegacy(qn, fnval){
+      var lp=baseParams(qn, fnval);
+      var q=[];
+      Object.keys(lp).forEach(function(k){ q.push(encodeURIComponent(k)+'='+encodeURIComponent(lp[k])); });
+      return await req(API+'/x/player/playurl?'+q.join('&'), { responseType:'json', timeout:20 });
+    }
+    // —— 路径 2：WBI + dm_* ——
+    async function tryWbi(qn, fnval){
+      var p=baseParams(qn, fnval);
+      var dm=dmParams();
+      p.dm_img_list=dm.dm_img_list;
+      p.dm_img_str=dm.dm_img_str;
+      p.dm_cover_img_str=dm.dm_cover_img_str;
+      p.dm_img_inter=dm.dm_img_inter;
+      p.web_location=dm.web_location;
+      return await apiWbi('/x/player/wbi/playurl', p);
+    }
+
+    // 清晰度降级序列：用户设定 → 80 → 64 → 32；fnval 先 DASH 再 FLV
+    var qnList=[+prefs.quality||80, 80, 64, 32];
+    var seen={}, qns=[];
+    qnList.forEach(function(q){ if(!seen[q]){ seen[q]=1; qns.push(q); } });
+    var fnvals=[4048, 16, 0]; // dash / dash-simple / flv
+
+    var qi, fi;
+    for(qi=0; qi<qns.length && !d; qi++){
+      for(fi=0; fi<fnvals.length && !d; fi++){
+        // legacy 优先
+        try{
+          j=await tryLegacy(qns[qi], fnvals[fi]);
+          if(j && j.data && (j.data.dash || (j.data.durl&&j.data.durl.length))){ d=j.data; break; }
+          if(j && j.code && j.code!==0) lastErr=new Error(j.message||('code '+j.code));
+        }catch(e){ lastErr=e; if(isRisk(null,e)){ /* continue */ } }
+
+        // 再 WBI
+        try{
+          j=await tryWbi(qns[qi], fnvals[fi]);
+          if(j && (j.code===-412 || j.code===-352)){
+            if(window.__bili){ try{ window.__bili.clearWbi&&window.__bili.clearWbi(); window.__bili.clearBuvid&&window.__bili.clearBuvid(); }catch(e){} }
+            try{ if(B&&B.ensureBuvid) await B.ensureBuvid(); }catch(e){}
+            lastErr=new Error('风控 '+j.code);
+            await new Promise(function(r){ setTimeout(r, 300); });
+            j=await tryWbi(qns[qi], fnvals[fi]);
+          }
+          if(j && j.data && (j.data.dash || (j.data.durl&&j.data.durl.length))){ d=j.data; break; }
+          if(j && j.code && j.code!==0) lastErr=new Error(j.message||('code '+j.code));
+        }catch(e){
+          lastErr=e;
+          if(window.__bili){ try{ window.__bili.clearWbi&&window.__bili.clearWbi(); }catch(e2){} }
         }
-        break;
-      }catch(e){
-        lastErr=e;
-        if(attempt>=2) throw e;
       }
     }
-    var d=j&&j.data;
-    if(!d){ throw new Error((j&&j.message)||(lastErr&&lastErr.message)||'playurl 失败'); }
+
+    if(!d){ throw new Error((lastErr&&lastErr.message)||(j&&j.message)||'playurl 失败(412)'); }
     if(d.dash&&!d.dash.duration&&item._dur) d.dash.duration=item._dur;
     return { dash:d.dash, durl:(d.durl&&d.durl[0]&&d.durl[0].url), needLogin:(prefs.quality>=80), needVip:(prefs.quality>=112) };
   }
 
   /* ---------- UP 主页 ---------- */
+  var upInfoCache={}; // mid -> {name,face,sign,fans,videos,level,...}
+
+  async function fetchUpInfo(mid){
+    mid = mid || 0;
+    if(!mid) return null;
+    if(upInfoCache[mid] && (Date.now()-upInfoCache[mid]._ts)<6*3600*1000) return upInfoCache[mid];
+    try{
+      // 公开接口，一般不需要 WBI；失败再试 wbi
+      var j = await req(API + '/x/space/acc/info?mid=' + mid, {
+        responseType:'json', timeout:12,
+        headers:{ Referer:'https://space.bilibili.com/'+mid }
+      });
+      if(!j || j.code!==0 || !j.data){
+        try{
+          j = await apiWbi('/x/space/wbi/acc/info', { mid:mid });
+        }catch(e){}
+      }
+      var d = j && j.data;
+      if(!d) return null;
+      var face = d.face || '';
+      if(face && face.indexOf('//')===0) face='https:'+face;
+      var info = {
+        mid: mid,
+        name: d.name || d.uname || '',
+        face: face,
+        sign: (d.sign || '').replace(/\s+/g,' ').trim(),
+        fans: (d.follower != null ? d.follower : (d.fans != null ? d.fans : 0)),
+        videos: d.archive_count || d.video_count || 0,
+        level: (d.level_info && d.level_info.current_level) || d.level || 0,
+        sex: d.sex || '',
+        top_photo: d.top_photo || '',
+        official: (d.official && d.official.title) || (d.official_verify && d.official_verify.desc) || '',
+        _ts: Date.now()
+      };
+      upInfoCache[mid]=info;
+      return info;
+    }catch(e){ return null; }
+  }
+
+  function formatFans(n){
+    n=+n||0;
+    if(n>=100000000) return (n/100000000).toFixed(1)+'亿粉丝';
+    if(n>=10000) return (n/10000).toFixed(1)+'万粉丝';
+    return n ? (n+'粉丝') : '';
+  }
+
+  function upContentText(info, extra){
+    if(!info && !extra) return '';
+    var parts=[];
+    if(info){
+      if(info.official) parts.push('【'+info.official+'】');
+      if(info.sign) parts.push(info.sign);
+      var meta=[];
+      if(info.fans) meta.push(formatFans(info.fans));
+      if(info.videos) meta.push(info.videos+'投稿');
+      if(info.level) meta.push('Lv.'+info.level);
+      if(meta.length) parts.push(meta.join(' · '));
+    }
+    if(extra) parts.push(extra);
+    return parts.join('\n');
+  }
+
   function enterUp(mid, name){
     subStack.push({mid:mid,name:name||'UP主'});
     $('subbar').className='subbar on'; elTabs.className='tabs off';
     $('subName').textContent=name||'UP主'; $('subDesc').textContent='TA 的投稿';
     history.pushState({sub:subStack.length},'','#up'+mid);
     view.type='up'; view.mid=mid; view.tab=''; load(true);
+    // 异步拉简介，更新副标题
+    fetchUpInfo(mid).then(function(info){
+      if(!info) return;
+      if(info.name){
+        $('subName').textContent=info.name;
+        var top=subStack[subStack.length-1];
+        if(top && top.mid===mid) top.name=info.name;
+      }
+      var bits=[];
+      if(info.fans) bits.push(formatFans(info.fans));
+      if(info.videos) bits.push(info.videos+'投稿');
+      if(info.sign) bits.push(info.sign.slice(0,28)+(info.sign.length>28?'…':''));
+      $('subDesc').textContent = bits.join(' · ') || 'TA 的投稿';
+    })['catch'](function(){});
   }
   function exitSub(silent){
     subStack.pop();
@@ -2831,6 +3513,7 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     try{ autoPage(); }catch(e){}
     try{ initGestures(); }catch(e){}
     try{ await loadHistory(); }catch(e){}
+    try{ await loadWatch(); }catch(e){}
     if(native&&fm.ui&&fm.ui.setChrome){ try{ fm.ui.setChrome({mode:'edge',statusBarStyle:'light',startup:true})['catch'](function(){}); }catch(e){} }
     load(true);
 

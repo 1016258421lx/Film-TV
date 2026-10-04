@@ -48,10 +48,10 @@
       "ext": ""
     },
     {
-      "key": "local_撸到死",
-      "name": "撸到死ᵖʸ",
+      "key": "local_avjoy",
+      "name": "avjoyᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/撸到死.py",
+      "api": "./File/py/Abalone/avjoy.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -62,10 +62,10 @@
       "ext": ""
     },
     {
-      "key": "local_boyfriend.show",
-      "name": "boyfriend.showᵖʸ",
+      "key": "local_茄子精品",
+      "name": "茄子精品ᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/boyfriend.show.py",
+      "api": "./File/py/Abalone/茄子精品.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -76,10 +76,10 @@
       "ext": ""
     },
     {
-      "key": "local_cam4",
-      "name": "cam4ᵖʸ",
+      "key": "local_57短剧",
+      "name": "57短剧ᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/cam4.py",
+      "api": "./File/py/Abalone/57短剧.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -90,24 +90,10 @@
       "ext": ""
     },
     {
-      "key": "local_epo",
-      "name": "epoᵖʸ",
+      "key": "local_xhamster",
+      "name": "xhamsterᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/epo.py",
-      "searchable": 1,
-      "quickSearch": 1,
-      "filterable": 1,
-      "order_num": 0,
-      "style": {
-        "type": "rect"
-      },
-      "ext": ""
-    },
-    {
-      "key": "local_fullhd",
-      "name": "fullhdᵖʸ",
-      "type": 3,
-      "api": "./File/py/Abalone/fullhd.py",
+      "api": "./File/py/Abalone/xhamster.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -132,6 +118,34 @@
       "ext": ""
     },
     {
+      "key": "local_hohoj",
+      "name": "hohojᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/hohoj.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_missav免翻",
+      "name": "missav免翻ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/missav免翻.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
       "key": "local_PigAV",
       "name": "PigAVᵖʸ",
       "type": 3,
@@ -146,10 +160,10 @@
       "ext": ""
     },
     {
-      "key": "local_麻豆影院🔞",
-      "name": "麻豆影院🔞ᵖʸ",
+      "key": "local_Javday",
+      "name": "Javdayᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/麻豆影院🔞.py",
+      "api": "./File/py/Abalone/Javday.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -160,10 +174,10 @@
       "ext": ""
     },
     {
-      "key": "local_Xhm",
-      "name": "Xhmᵖʸ",
+      "key": "local_88影视(秒播)",
+      "name": "88影视(秒播)ᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/Xhm.py",
+      "api": "./File/py/Abalone/88影视(秒播).py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -202,10 +216,10 @@
       "ext": ""
     },
     {
-      "key": "local_tideember",
-      "name": "tideemberᵖʸ",
+      "key": "local_ko4",
+      "name": "ko4ᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/tideember.py",
+      "api": "./File/py/Abalone/ko4.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -230,10 +244,10 @@
       "ext": ""
     },
     {
-      "key": "local_今日看料",
-      "name": "今日看料ᵖʸ",
+      "key": "local_getav",
+      "name": "getavᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/今日看料.py",
+      "api": "./File/py/Abalone/getav.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -272,10 +286,10 @@
       "ext": ""
     },
     {
-      "key": "local_小精灵3",
-      "name": "小精灵3ᵖʸ",
+      "key": "local_Jable",
+      "name": "Jableᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/小精灵3.py",
+      "api": "./File/py/Abalone/Jable.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -314,10 +328,10 @@
       "ext": ""
     },
     {
-      "key": "local_missav-app",
-      "name": "missav-appᵖʸ",
+      "key": "local_huangguo",
+      "name": "huangguoᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/missav-app.py",
+      "api": "./File/py/Abalone/huangguo.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -384,10 +398,10 @@
       "ext": ""
     },
     {
-      "key": "local_韩国色情电影",
-      "name": "韩国色情电影ᵖʸ",
+      "key": "local_pinporn续播流",
+      "name": "pinporn续播流ᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/韩国色情电影.py",
+      "api": "./File/py/Abalone/pinporn续播流.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -468,10 +482,10 @@
       "ext": ""
     },
     {
-      "key": "local_黑料不打烊",
-      "name": "黑料不打烊ᵖʸ",
+      "key": "local_tiktok连播流",
+      "name": "tiktok连播流ᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/黑料不打烊.py",
+      "api": "./File/py/Abalone/tiktok连播流.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -594,10 +608,10 @@
       "ext": ""
     },
     {
-      "key": "local_免费看爽片",
-      "name": "免费看爽片ᵖʸ",
+      "key": "local_waptap优化版[短]",
+      "name": "waptap优化版[短]ᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/免费看爽片.py",
+      "api": "./File/py/Abalone/waptap优化版[短].py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -622,10 +636,10 @@
       "ext": ""
     },
     {
-      "key": "local_肉视频",
-      "name": "肉视频ᵖʸ",
+      "key": "local_rolizxwnoble",
+      "name": "rolizxwnobleᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/肉视频.py",
+      "api": "./File/py/Abalone/rolizxwnoble.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -748,10 +762,24 @@
       "ext": ""
     },
     {
-      "key": "local_黄豆短剧API",
-      "name": "黄豆短剧APIᵖʸ",
+      "key": "local_shaofu36",
+      "name": "shaofu36ᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/黄豆短剧API.py",
+      "api": "./File/py/Abalone/shaofu36.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_xigua51",
+      "name": "xigua51ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/xigua51.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -972,10 +1000,10 @@
       "ext": ""
     },
     {
-      "key": "local_hohoj",
-      "name": "hohojᵖʸ",
+      "key": "local_xx01",
+      "name": "xx01ᵖʸ",
       "type": 3,
-      "api": "./File/py/Abalone/hohoj.py",
+      "api": "./File/py/Abalone/xx01.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -1046,6 +1074,468 @@
       "name": "911爆料ᵖʸ",
       "type": 3,
       "api": "./File/py/Abalone/911爆料.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_93合1",
+      "name": "93合1ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/93合1.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_肉视频",
+      "name": "肉视频ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/肉视频.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_吉利猫",
+      "name": "吉利猫ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/吉利猫.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_bestjav",
+      "name": "bestjavᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/bestjav.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_小荷塘",
+      "name": "小荷塘ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/小荷塘.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_porntrex",
+      "name": "porntrexᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/porntrex.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_juguo_spider",
+      "name": "juguo_spiderᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/juguo_spider.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_yeguo_spider",
+      "name": "yeguo_spiderᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/yeguo_spider.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_huangguo_spider",
+      "name": "huangguo_spiderᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/huangguo_spider.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_禁果短剧",
+      "name": "禁果短剧ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/禁果短剧.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_88影视(修改)",
+      "name": "88影视(修改)ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/88影视(修改).py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_MissAV",
+      "name": "MissAVᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/MissAV.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_2048成人短剧[18]",
+      "name": "2048成人短剧[18]ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/2048成人短剧[18].py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_GetAV_IOS专用",
+      "name": "GetAV_IOS专用ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/GetAV_IOS专用.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_ejatv",
+      "name": "ejatvᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/ejatv.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_xx9",
+      "name": "xx9ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/xx9.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_精仙阁修复版",
+      "name": "精仙阁修复版ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/精仙阁修复版.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_ymg",
+      "name": "ymgᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/ymg.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_成人卡通",
+      "name": "成人卡通ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/成人卡通.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]618",
+      "name": "[瑟]618ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]618.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]74P福利图",
+      "name": "[瑟]74P福利图ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]74P福利图.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]VPorn",
+      "name": "[瑟]VPornᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]VPorn.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]YouTube",
+      "name": "[瑟]YouTubeᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]YouTube.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]mjv011(1)",
+      "name": "[瑟]mjv011(1)ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]mjv011(1).py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]居屋短剧",
+      "name": "[瑟]居屋短剧ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]居屋短剧.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]怦然心动",
+      "name": "[瑟]怦然心动ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]怦然心动.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]神秘电影",
+      "name": "[瑟]神秘电影ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]神秘电影.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_51短剧",
+      "name": "51短剧ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/51短剧.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_浮生影院",
+      "name": "浮生影院ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/浮生影院.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]韩三伦理",
+      "name": "[瑟]韩三伦理ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]韩三伦理.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]黄豆短剧",
+      "name": "[瑟]黄豆短剧ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]黄豆短剧.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]熊猫直播",
+      "name": "[瑟]熊猫直播ᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]熊猫直播.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "order_num": 0,
+      "style": {
+        "type": "rect"
+      },
+      "ext": ""
+    },
+    {
+      "key": "local_[瑟]星梦Asmr",
+      "name": "[瑟]星梦Asmrᵖʸ",
+      "type": 3,
+      "api": "./File/py/Abalone/[瑟]星梦Asmr.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,

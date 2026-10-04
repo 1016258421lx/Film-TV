@@ -156,11 +156,11 @@ class Spider(BaseSpider):
                 if url:
                     lines.append(f"{title}${url}")
             play_url = "#".join(lines)
-            play_from = data.get("source") or self.name
+            play_from = "@AC_Film_TV"
         else:
             url = data.get("url") or ""
             play_url = f"正片${url}" if url else ""
-            play_from = self.name
+            play_from = "@AC_Film_TV"
 
         vod = {
             "vod_id": self._vod_id(cid),

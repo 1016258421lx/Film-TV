@@ -121,7 +121,7 @@ class Spider(BaseSpider):
             "vod_actor": info.get("actor") or "",
             "vod_director": info.get("director") or "",
             "vod_content": info.get("description") or "",
-            "vod_play_from": self.name,
+            "vod_play_from": "@AC_Film_TV",
             "vod_play_url": "#".join(play),
         }
         return {"list": [vod]}

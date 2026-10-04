@@ -19,8 +19,16 @@ try:
 except ImportError:
     class SpiderBase(object):
         def getCache(self, key): return None
-        def setCache(self, key, value): "fail"
-        def delCache(self, key): "fail"
+        def setCache(self, key, value): return "fail"
+        def delCache(self, key): return "fail"
+
+
+def format_remarks(brand="蝴蝶影视", meta=""):
+    clean_meta = str(meta or "").strip()
+    clean_meta = re.sub(r"[\r\n\t]+", " ", clean_meta).strip()
+    if clean_meta:
+        return "%s | %s" % (brand, clean_meta)
+    return brand
 
 
 class Spider(SpiderBase):
@@ -33,7 +41,7 @@ class Spider(SpiderBase):
         self.tgGroup = "https://t.me/tvshare23"
         self.brandActor = "🦋 TG群: @tvshare23"
         self.brandDirector = "🦋 蝴蝶影视"
-        self._ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+        self._ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko)"
         self.options = {}
 
         self.ctx = ssl.create_default_context()
@@ -54,15 +62,14 @@ class Spider(SpiderBase):
                 self.options = json.loads(extend)
             except Exception:
                 self.options = {}
+        # 仅读取轻量级缓存，不在 init 中执行阻塞网络请求
         cached_site = self.getCache("ptt01_dynamic_site_url")
-        if cached_site and cached_site.startswith("http"):
+        if cached_site and str(cached_site).startswith("http"):
             self.siteUrl = cached_site.strip().rstrip("/")
-        else:
-            self._refresh_site_url()
         return True
 
     def getName(self):
-        return "蝴蝶影院·动态发布自愈版"
+        return "蝴蝶影院·动态自愈版"
 
     def isVideoFormat(self, url):
         low = (url or "").lower()
@@ -70,36 +77,29 @@ class Spider(SpiderBase):
 
     def manualVideoCheck(self):
         return False
+
     def _refresh_site_url(self):
         headers = {
             "User-Agent": self._ua,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Encoding": "gzip, deflate"
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
 
         for nav in self.navUrls:
             text = ""
             try:
                 req = urllib.request.Request(nav, headers=headers)
-                with self.opener.open(req, timeout=8) as resp:
+                with self.opener.open(req, timeout=4) as resp:
                     raw = resp.read()
                     enc = getattr(resp, "headers", {}).get("Content-Encoding", "")
                     if raw.startswith(b"\x1f\x8b") or enc == "gzip":
                         raw = gzip.decompress(raw)
                     text = raw.decode("utf-8", errors="ignore")
-            except urllib.error.HTTPError as e:
-                try:
-                    raw = e.read()
-                    if raw.startswith(b"\x1f\x8b"):
-                        raw = gzip.decompress(raw)
-                    text = raw.decode("utf-8", errors="ignore")
-                except Exception:
-                    text = ""
             except Exception:
                 continue
 
             if not text:
                 continue
+
             b64_blocks = re.findall(r'["\']([A-Za-z0-9+/=]{100,})["\']', text)
             for b in b64_blocks:
                 try:
@@ -109,11 +109,10 @@ class Spider(SpiderBase):
                         site_list = json.loads(unquoted)
                         for item in site_list:
                             name = item.get("name", "").strip()
-                            if name == self.siteName or name == "稀缺资源":
+                            if name in (self.siteName, "稀缺资源"):
                                 cand_urls = []
-                                main_url = item.get("url", "")
-                                if main_url:
-                                    cand_urls.append(main_url)
+                                if item.get("url"):
+                                    cand_urls.append(item.get("url"))
                                 for u_obj in item.get("urls", []):
                                     u = u_obj.get("url", "")
                                     if u and u not in cand_urls:
@@ -122,7 +121,7 @@ class Spider(SpiderBase):
                                 for c_url in cand_urls:
                                     parsed = urllib.parse.urlparse(c_url)
                                     base = "%s://%s" % (parsed.scheme, parsed.netloc)
-                                    chk = self._fetch(base + "/p/1", check_host=False)
+                                    chk = self._fetch(base + "/p/1", check_host=False, timeout=3)
                                     if chk.get("code") == 200:
                                         self.siteUrl = base
                                         self.setCache("ptt01_dynamic_site_url", base)
@@ -132,9 +131,9 @@ class Spider(SpiderBase):
 
         return False
 
-    def _fetch(self, target_url, referer="", check_host=True):
+    def _fetch(self, target_url, referer="", check_host=True, timeout=5):
         if not target_url:
-            return {"code": 0, "text": "", "err": "", "final_url": ""}
+            return {"code": 0, "text": "", "final_url": ""}
         if target_url.startswith("//"):
             target_url = "https:" + target_url
         elif target_url.startswith("/"):
@@ -144,62 +143,32 @@ class Spider(SpiderBase):
             "User-Agent": self._ua,
             "Referer": referer if referer else (self.siteUrl + "/"),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
             "Accept-Encoding": "gzip, deflate",
-            "Connection": "keep-alive",
+            "Connection": "keep-alive"
         }
 
-        last_err = ""
-        domain_retried = False
-
-        for attempt in range(2):
-            try:
-                req = urllib.request.Request(target_url, headers=headers)
-                with self.opener.open(req, timeout=10) as resp:
-                    code = resp.getcode()
-                    final_url = resp.geturl()
-                    raw = resp.read()
-                    enc = getattr(resp, "headers", {}).get("Content-Encoding", "")
-                    if raw.startswith(b"\x1f\x8b") or enc == "gzip":
-                        raw = gzip.decompress(raw)
-                    elif enc == "deflate":
-                        try:
-                            raw = zlib.decompress(raw)
-                        except Exception:
-                            raw = zlib.decompress(raw, -zlib.MAX_WBITS)
+        try:
+            req = urllib.request.Request(target_url, headers=headers)
+            with self.opener.open(req, timeout=timeout) as resp:
+                raw = resp.read()
+                enc = getattr(resp, "headers", {}).get("Content-Encoding", "")
+                if raw.startswith(b"\x1f\x8b") or enc == "gzip":
+                    raw = gzip.decompress(raw)
+                elif enc == "deflate":
                     try:
-                        text = raw.decode("utf-8")
+                        raw = zlib.decompress(raw)
                     except Exception:
-                        text = raw.decode("latin1", errors="ignore")
-                    return {"code": code, "text": text, "err": "", "final_url": final_url}
-            except urllib.error.HTTPError as e:
-                last_err = "HTTP %s" % e.code
-                if e.code in (404, 451, 502, 503) and check_host and not domain_retried:
-                    old_host = urllib.parse.urlparse(self.siteUrl).netloc
-                    self.delCache("ptt01_dynamic_site_url")
-                    if self._refresh_site_url():
-                        domain_retried = True
-                        new_host = urllib.parse.urlparse(self.siteUrl).netloc
-                        target_url = target_url.replace(old_host, new_host)
-                        continue
-                if e.code in (451, 403, 429) and attempt == 0:
-                    continue
-                return {"code": e.code, "text": "", "err": str(e), "final_url": target_url}
-            except Exception as e:
-                last_err = str(e)
-                if check_host and not domain_retried:
-                    old_host = urllib.parse.urlparse(self.siteUrl).netloc
-                    self.delCache("ptt01_dynamic_site_url")
-                    if self._refresh_site_url():
-                        domain_retried = True
-                        new_host = urllib.parse.urlparse(self.siteUrl).netloc
-                        target_url = target_url.replace(old_host, new_host)
-                        continue
-                if attempt == 0:
-                    continue
-                return {"code": -1, "text": "", "err": str(e), "final_url": target_url}
-
-        return {"code": -1, "text": "", "err": last_err, "final_url": target_url}
+                        raw = zlib.decompress(raw, -zlib.MAX_WBITS)
+                text = raw.decode("utf-8", errors="ignore")
+                return {"code": resp.getcode(), "text": text, "final_url": resp.geturl()}
+        except urllib.error.HTTPError as e:
+            if e.code in (404, 451, 502, 503) and check_host:
+                self.delCache("ptt01_dynamic_site_url")
+                if self._refresh_site_url():
+                    return self._fetch(target_url, referer=referer, check_host=False, timeout=timeout)
+            return {"code": e.code, "text": "", "final_url": target_url}
+        except Exception:
+            return {"code": -1, "text": "", "final_url": target_url}
 
     def homeContent(self, filter):
         classes = [
@@ -308,14 +277,14 @@ class Spider(SpiderBase):
                     img_src = ("https:" + cand) if cand.startswith("//") else ((self.siteUrl + cand) if cand.startswith("/") else cand)
 
             m_rem = re.search(r'class=["\'][^"\']*(?:badge|label|text-muted|remarks)[^"\']*["\'][^>]*>([^<]+)<', block, re.I)
-            remarks = m_rem.group(1).strip() if m_rem else "HD"
+            raw_remarks = m_rem.group(1).strip() if m_rem else "HD"
 
             seen.add(path)
             cards.append({
                 "vod_id": path,
                 "vod_name": html_lib.unescape(title),
                 "vod_pic": img_src,
-                "vod_remarks": remarks,
+                "vod_remarks": format_remarks("蝴蝶影视", raw_remarks),
                 "style": {"type": "rect", "ratio": 0.75}
             })
 
@@ -344,14 +313,14 @@ class Spider(SpiderBase):
         if query_parts:
             req_path += ("&" if "?" in req_path else "?") + "&".join(query_parts)
 
-        res = self._fetch(req_path)
+        res = self._fetch(req_path, timeout=4)
         cards = self._parse_card_list(res.get("text", ""))
 
         return {
             "page": page_num,
             "pagecount": page_num + 1 if len(cards) >= 12 else page_num,
-            "limit": len(cards),
-            "total": 9999,
+            "limit": len(cards) if len(cards) > 0 else 12,
+            "total": 99999,
             "list": cards
         }
 
@@ -359,7 +328,7 @@ class Spider(SpiderBase):
         raw_id = ids[0] if isinstance(ids, (list, tuple)) else str(ids)
         target_path = str(raw_id).strip()
 
-        res = self._fetch(target_path)
+        res = self._fetch(target_path, timeout=4)
         html_text = res.get("text", "")
 
         title_m = re.search(r'<title>(.*?)</title>', html_text, re.I)
@@ -409,18 +378,19 @@ class Spider(SpiderBase):
                 "vod_pic": vod_pic,
                 "vod_actor": self.brandActor,
                 "vod_director": self.brandDirector,
-                "vod_remarks": "HD原画",
+                "vod_remarks": format_remarks("蝴蝶影视", "HD原画"),
                 "vod_content": full_desc.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"),
                 "vod_play_from": "PTT01专线",
-                "vod_play_url": "#".join(play_items) if play_items else "正片$http://127.0.0.1"
+                "vod_play_url": "#".join(play_items) if play_items else ""
             }]
         }
 
     def playerContent(self, flag, id, vipFlags):
-        play_url = str(id).strip()
+        del flag, vipFlags
+        play_url = str(id or "").strip()
 
         if not play_url.startswith("http") and (play_url.startswith("/v/") or play_url.startswith("/")):
-            res = self._fetch(play_url)
+            res = self._fetch(play_url, timeout=4)
             html_text = res.get("text", "")
             m_hls = re.search(r'https?://[^"\'\s<>]+\.m3u8[^"\'\s<>]*', html_text)
             if m_hls:
@@ -434,15 +404,12 @@ class Spider(SpiderBase):
 
         return {
             "parse": 0,
-            "jx": 0,
             "url": play_url,
-            "header": headers,
-            "contentType": "application/x-mpegURL" if ".m3u8" in play_url else "video/mp4",
-            "format": "hls" if ".m3u8" in play_url else "mp4",
-            "position": 1
+            "header": headers
         }
 
     def searchContent(self, key, quick, pg="1"):
+        del quick
         if not key:
             return {"page": 1, "pagecount": 1, "limit": 0, "total": 0, "list": []}
 
@@ -453,20 +420,18 @@ class Spider(SpiderBase):
         if page_num > 1:
             search_url += "&page=%d" % page_num
 
-        res = self._fetch(search_url)
+        res = self._fetch(search_url, timeout=4)
         cards = self._parse_card_list(res.get("text", ""))
 
         return {
             "page": page_num,
             "pagecount": page_num + 1 if len(cards) >= 12 else page_num,
-            "limit": len(cards),
-            "total": 9999,
+            "limit": len(cards) if len(cards) > 0 else 12,
+            "total": 99999,
             "list": cards
         }
 
     def action(self, action):
-        if action == "toast":
-            return {"msg": "当前有效主站: %s" % self.siteUrl}
         return {"msg": "ok"}
 
     def liveContent(self):

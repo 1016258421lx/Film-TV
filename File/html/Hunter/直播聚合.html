@@ -1150,11 +1150,36 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
 (function () {
   'use strict';
   var MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1';
-  var PC_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+  var PC_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
 
   function $(id){ return document.getElementById(id); }
   function isNative(){ return !!(window.fm && window.fm.req); }
   var prefs = { rate:'0', ua:MOBILE_UA, wall:'pic', biliCk:'' };
+
+  /* B 站设备指纹：搜索 / 部分列表缺 buvid3 会直接 HTTP 412 或 code -352 */
+  var biliBuvidCache = { val: '', ts: 0 };
+  var biliBuvidPromise = null;
+  async function ensureBiliBuvid(){
+    if(biliBuvidCache.val && (Date.now() - biliBuvidCache.ts) < 12 * 3600 * 1000) return biliBuvidCache.val;
+    if(biliBuvidPromise) return biliBuvidPromise;
+    biliBuvidPromise = (async function(){
+      try{
+        var j = await req('https://api.bilibili.com/x/frontend/finger/spi', {
+          responseType:'json', timeout:10, pc:true,
+          headers:{ 'User-Agent':PC_UA, Referer:'https://www.bilibili.com/', Origin:'https://www.bilibili.com' },
+          _skipBuvid:true
+        });
+        var d = j && j.data;
+        var parts = [];
+        if(d && d.b_3) parts.push('buvid3=' + d.b_3);
+        if(d && d.b_4) parts.push('buvid4=' + d.b_4);
+        biliBuvidCache = { val: parts.join('; '), ts: Date.now() };
+      }catch(e){}
+      biliBuvidPromise = null;
+      return biliBuvidCache.val;
+    })();
+    return biliBuvidPromise;
+  }
 
   var md5 = (function () {
     function rl(n, c) { return (n << c) | (n >>> (32 - c)); }
@@ -2275,20 +2300,30 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     if(ck.indexOf('=') < 0) ck = 'SESSDATA=' + ck;
     return ck;
   }
-  function biliHdr(){
+  async function biliHdr(extra){
     var h = {
       'User-Agent': PC_UA,
       'Referer': 'https://live.bilibili.com/',
       'Origin': 'https://live.bilibili.com',
       'Accept': 'application/json, text/plain, */*'
     };
-    var ck = biliCookie();
-    if(ck) h['Cookie'] = ck;
+    if(extra){ for(var k in extra) if(extra[k] !== undefined) h[k] = extra[k]; }
+    var parts = [];
+    var userCk = biliCookie();
+    if(userCk) parts.push(userCk.replace(/;\s*$/, ''));
+    // 无 SESSDATA 时也必须带 buvid，否则搜索 412、部分列表 -352
+    if(!/buvid3=/i.test(userCk)){
+      try{
+        var bv = await ensureBiliBuvid();
+        if(bv) parts.push(bv);
+      }catch(e){}
+    }
+    if(parts.length) h['Cookie'] = parts.join('; ');
     return h;
   }
   async function biliCheckLogin(){
     var j = await req('https://api.bilibili.com/x/web-interface/nav', {
-      responseType:'json', headers: biliHdr(), pc:true, referer:'https://www.bilibili.com/'
+      responseType:'json', headers: await biliHdr(), pc:true, referer:'https://www.bilibili.com/'
     });
     if(!j) return { ok:false, msg:'无响应' };
     if(j.code !== 0) return { ok:false, msg: j.message || ('code '+j.code) };
@@ -2304,15 +2339,16 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
 
   async function biliLive(gid, page){
     var cate = gid || 'rec';
-    // 推荐：首页聚合（兼容 rec / 0-0 / 空）
+    var hdr = await biliHdr();
+
+    // 推荐：首页聚合 → 旧推荐接口（second/getList 无 Cookie 易 -352，最后再试）
     if(cate === 'rec' || cate === '0-0' || cate === '' || cate === '0'){
       try {
         var j = await req('https://api.live.bilibili.com/xlive/web-interface/v1/index/getList?platform=web', {
-          responseType:'json', headers: biliHdr(), pc:true
+          responseType:'json', headers: hdr, pc:true
         });
         if(j && j.code === 0 && j.data){
           var arr = [], seen = {}, mods = j.data.room_list || [];
-          // 推荐模块优先
           var rec = j.data.recommend_room_list || [];
           collectBili(rec).forEach(function(r){ if(!seen[r.rid]){ seen[r.rid]=1; arr.push(r); } });
           mods.forEach(function(mod){
@@ -2321,6 +2357,17 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
             });
           });
           if(arr.length) return { items: arr, more: false };
+        }
+      } catch(e) {}
+      // 实测稳定：get_user_recommend
+      try {
+        var jr = await req('https://api.live.bilibili.com/room/v1/room/get_user_recommend?page=' + page + '&page_size=30', {
+          responseType:'json', headers: hdr, pc:true
+        });
+        if(jr && (jr.code === 0 || jr.msg === 'ok') && jr.data){
+          var listR = Array.isArray(jr.data) ? jr.data : (jr.data.list || []);
+          var arrR = collectBili(listR);
+          if(arrR.length) return { items: arrR, more: arrR.length >= 20 };
         }
       } catch(e) {}
     }
@@ -2333,28 +2380,30 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
       area = parseInt(parts[1], 10) || 0;
     }
 
-    // 优先旧接口 getRoomList（兼容性好）
+    // 优先旧接口 getRoomList（无 Cookie 也可用）；second/getList 易 -352 放最后
     var urls = [];
     if(area > 0){
       urls.push('https://api.live.bilibili.com/room/v1/area/getRoomList?area_id=' + area + '&sort_type=online&page_size=30&page_no=' + page);
     } else if(parent > 0){
-      urls.push('https://api.live.bilibili.com/room/v1/area/getRoomList?parent_area_id=' + parent + '&cate_id=0&area_id=0&sort_type=online&page=1&page_size=30&page_no=' + page);
       urls.push('https://api.live.bilibili.com/room/v1/area/getRoomList?parent_area_id=' + parent + '&area_id=0&sort_type=online&page_size=30&page_no=' + page);
+      urls.push('https://api.live.bilibili.com/room/v1/area/getRoomList?parent_area_id=' + parent + '&cate_id=0&area_id=0&sort_type=online&page=1&page_size=30&page_no=' + page);
+    } else {
+      urls.push('https://api.live.bilibili.com/room/v1/room/get_user_recommend?page=' + page + '&page_size=30');
     }
-    urls.push('https://api.live.bilibili.com/xlive/web-interface/v1/second/getList?platform=web&parent_area_id=' + (parent||1) + '&area_id=' + area + '&sort_type=online&page=' + page + '&page_size=30');
+    urls.push('https://api.live.bilibili.com/xlive/web-interface/v1/second/getList?platform=web&parent_area_id=' + (parent||2) + '&area_id=' + area + '&sort_type=online&page=' + page + '&page_size=30');
 
-    var lastErr = null, i, j, arr;
+    var lastErr = null, i, j2, arr2;
     for(i=0;i<urls.length;i++){
       try {
-        j = await req(urls[i], { responseType:'json', headers: biliHdr(), pc:true });
-        if(!j) continue;
-        if(j.code !== 0 && j.code !== undefined){ lastErr = new Error(j.message || ('code '+j.code)); continue; }
-        var data = j.data;
+        j2 = await req(urls[i], { responseType:'json', headers: hdr, pc:true });
+        if(!j2) continue;
+        if(j2.code !== 0 && j2.code !== undefined && j2.code !== '0'){ lastErr = new Error(j2.message || ('code '+j2.code)); continue; }
+        var data = j2.data;
         var list = [];
         if(Array.isArray(data)) list = data;
         else if(data) list = data.list || data.recommend_room_list || [];
-        arr = collectBili(list);
-        if(arr.length) return { items: arr, more: arr.length >= 20 };
+        arr2 = collectBili(list);
+        if(arr2.length) return { items: arr2, more: arr2.length >= 20 };
       } catch(e){ lastErr = e; }
     }
     if(lastErr) throw lastErr;
@@ -2362,9 +2411,13 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   }
 
   async function biliSearch(kw, page){
+    var hdr = await biliHdr({
+      Referer: 'https://search.bilibili.com/',
+      Origin: 'https://search.bilibili.com'
+    });
     var j = await req(
       'https://api.bilibili.com/x/web-interface/search/type?search_type=live_room&keyword=' + encodeURIComponent(kw) + '&page=' + page,
-      { responseType:'json', headers: biliHdr(), pc:true, referer:'https://search.bilibili.com/' }
+      { responseType:'json', headers: hdr, pc:true, referer:'https://search.bilibili.com/' }
     );
     if(!j || j.code !== 0) throw new Error((j && j.message) || '搜索失败');
     var list = (j.data && j.data.result) || [];
@@ -2399,10 +2452,11 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
 
   async function biliStream(rid){
     var realRid = String(rid);
-    // 短号转长号（pure_live 同逻辑）
+    var hdr = await biliHdr();
+    // 短号转长号
     try {
       var init = await req('https://api.live.bilibili.com/room/v1/Room/room_init?id=' + encodeURIComponent(realRid), {
-        responseType:'json', headers: biliHdr(), pc:true
+        responseType:'json', headers: hdr, pc:true
       });
       if(init && init.code === 0 && init.data){
         if(+init.data.live_status === 0) throw new Error('房间未开播');
@@ -2413,7 +2467,6 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     }
 
     var qn = biliQn();
-    // pure_live 主路径：getRoomPlayInfo，protocol/format/codec 全开，platform=html5
     function pickFromPlayInfo(j2){
       if(!j2 || j2.code !== 0 || !j2.data) return null;
       var streams = (((j2.data.playurl_info || {}).playurl || {}).stream) || [];
@@ -2436,7 +2489,7 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
                   urls.push({
                     url: url,
                     hls: /\.m3u8/.test(url) || fname === 'ts' || fname === 'fmp4',
-                    mcdn: /mcdn/i.test(url)
+                    mcdn: /mcdn|szbdyd|\.edge\.|szext|\bxy\d/i.test(url)
                   });
                 }
               }
@@ -2445,26 +2498,38 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
         }
       }
       if(!urls.length) return null;
-      // pure_live：mcdn 靠后
-      urls.sort(function(a,b){ return (a.mcdn?1:0) - (b.mcdn?1:0); });
+      // 优先非 mcdn，再优先 HLS（播放器兼容更好）
+      urls.sort(function(a,b){
+        var am = a.mcdn?1:0, bm = b.mcdn?1:0;
+        if(am !== bm) return am - bm;
+        return (b.hls?1:0) - (a.hls?1:0);
+      });
       var best = urls[0];
       return best.hls ? { url:best.url, format:'application/x-mpegURL' } : { url:best.url };
     }
 
-    try {
-      var j2 = await req(
-        'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=' + encodeURIComponent(realRid)
-          + '&protocol=0,1&format=0,1,2&codec=0&platform=html5&dolby=5&qn=' + qn,
-        { responseType:'json', headers: biliHdr(), pc:true }
-      );
-      var picked = pickFromPlayInfo(j2);
-      if(picked) return picked;
-    } catch(e) {}
+    // 多组参数轮询：web + html5，codec 全开
+    var playUrls = [
+      'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=' + encodeURIComponent(realRid)
+        + '&protocol=0,1&format=0,1,2&codec=0,1&qn=' + qn + '&platform=web&ptype=8',
+      'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=' + encodeURIComponent(realRid)
+        + '&protocol=0,1&format=0,1,2&codec=0,1&qn=' + qn + '&platform=html5&dolby=5',
+      'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=' + encodeURIComponent(realRid)
+        + '&protocol=0,1&format=0,1,2&codec=0&platform=html5&dolby=5&qn=' + qn
+    ];
+    var i, j2, picked;
+    for(i=0;i<playUrls.length;i++){
+      try {
+        j2 = await req(playUrls[i], { responseType:'json', headers: hdr, pc:true });
+        picked = pickFromPlayInfo(j2);
+        if(picked) return picked;
+      } catch(e) {}
+    }
 
     // 旧 playUrl 兜底
     var j = await req(
       'https://api.live.bilibili.com/room/v1/Room/playUrl?cid=' + encodeURIComponent(realRid) + '&qn=' + qn + '&platform=web',
-      { responseType:'json', headers: biliHdr(), pc:true }
+      { responseType:'json', headers: hdr, pc:true }
     );
     if(j && j.code === 0){
       var durl = (j.data && j.data.durl) || [];
@@ -2875,13 +2940,15 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   }
 
   async function fetchKsCate(){
+    // type=1 与顶部「热门(rec)」重复且子项会和其它一级交叉，导致点二级被 resolve 回热门
     var parents = [
-      { id:'1', name:'热门' }, { id:'2', name:'网游' }, { id:'3', name:'单机' },
+      { id:'2', name:'网游' }, { id:'3', name:'单机' },
       { id:'4', name:'手游' }, { id:'5', name:'棋牌' }, { id:'6', name:'娱乐' },
       { id:'7', name:'综合' }, { id:'8', name:'文化' }
     ];
     var tree = [{ g:'rec', name:'热门', children:[] }];
     var flat = [{ g:'rec', name:'热门' }];
+    var seenId = {};
     for(var i=0;i<parents.length;i++){
       var p = parents[i];
       try{
@@ -2896,10 +2963,11 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
           var id = String(it.id || it.categoryId || it.gameId || '');
           var nm = it.name || it.categoryName || it.gameName || '';
           if(!id || !nm) continue;
-          // pure_live: areaId 短于7用 gameboard，否则 non-gameboard；列表侧用 id
-          var g = id.length < 7 ? ('game:'+id) : ('board:'+id);
-          // 实际 live 函数用 game:name 过滤；这里改用真实 id
-          g = 'ks:' + id;
+          // 同一 id 只挂到首次出现的一级，避免跨一级重复导致选中错乱
+          if(seenId[id]) continue;
+          seenId[id] = 1;
+          // pure_live: 列表侧用 ks:id；live() 里按 id 长度选 gameboard / non-gameboard
+          var g = 'ks:' + id;
           kids.push({ g:g, name:nm, _ksId:id });
           flat.push({ g:g, name:nm, _ksId:id });
         }
@@ -3046,44 +3114,135 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   function endLoading(){ elList.className='grid'; }
   function moeEmpty(t,s){ return '<div class="moe-empty"><svg viewBox="0 0 80 64" width="84" height="66" aria-hidden="true"><rect x="6" y="14" width="68" height="44" rx="15" fill="'+ (SRC==='douyu'?'#FF5A00':'#FF7700') +'"/><rect x="13" y="21" width="54" height="30" rx="10" fill="#1C1712"/><path d="M25 33 q4 5 8 0" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M47 33 q4 5 8 0" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none"/></svg><div class="moe-text">'+t+'</div><div class="moe-sub">'+(s||'')+'</div></div>'; }
 
+  /**
+   * 根据 view.cate 反查所属一级分区 g。
+   * 优先锁定在当前 view.parentKey 下（避免快手等平台同一子分区出现在多个一级里时被 resolve 回「热门」）。
+   */
+  function resolveParentKey(cateG){
+    if(A.cateTree && A.cateTree.length){
+      var i, j, n, kids, pk = view.parentKey;
+      // 1) 当前一级下能命中子分区 → 绝不换一级
+      if(pk !== undefined && pk !== null){
+        for(i=0;i<A.cateTree.length;i++){
+          if(A.cateTree[i].g !== pk) continue;
+          n = A.cateTree[i];
+          if(n.g === cateG) return n.g;
+          kids = n.children || [];
+          for(j=0;j<kids.length;j++){ if(kids[j].g === cateG) return n.g; }
+          // 当前一级存在但子项对不上，仍保留当前一级（由调用方决定是否改 cate）
+          return n.g;
+        }
+      }
+      // 2) cate 本身就是一级
+      for(i=0;i<A.cateTree.length;i++){ if(A.cateTree[i].g === cateG) return A.cateTree[i].g; }
+      // 3) 全局子分区反查（仅在没有有效 parentKey 时）
+      for(i=0;i<A.cateTree.length;i++){
+        n = A.cateTree[i]; kids = n.children || [];
+        for(j=0;j<kids.length;j++){ if(kids[j].g === cateG) return n.g; }
+      }
+    }
+    if(view.parentKey !== undefined && view.parentKey !== null) return view.parentKey;
+    return cateG != null ? cateG : '';
+  }
+
   function updateAreas(){
     if(!elAreas) return;
-    // 动态分区树：二级子分区
-    if(A.cateTree && view.parentKey){
+    // 动态分区树：二级子分区（严格单选）
+    // 注意 parentKey 可能为 ''（推荐），不能用 if(view.parentKey) 判断
+    if(A.cateTree && A.cateTree.length && view.parentKey !== undefined && view.parentKey !== null){
       var node = null, i;
       for(i=0;i<A.cateTree.length;i++){
         if(A.cateTree[i].g === view.parentKey){ node = A.cateTree[i]; break; }
       }
       var kids = (node && node.children) || [];
       if(kids.length){
+        var inKids = false;
+        for(i=0;i<kids.length;i++){ if(kids[i].g === view.cate){ inKids = true; break; } }
+        if(!inKids) view.cate = kids[0].g;
+        // 强制 parentKey 对齐当前 node，防止被串改
+        if(node) view.parentKey = node.g;
+
+        // 同一一级且二级栏结构已在：只改高亮，避免整条闪烁
+        var existing = elAreas.querySelectorAll('.larea[data-g]');
+        var sameChrome = elAreas.className.indexOf('on') !== -1
+          && existing.length === kids.length
+          && elAreas.getAttribute('data-parent') === String(node.g);
+        if(sameChrome){
+          var ok = true;
+          for(i=0;i<kids.length;i++){
+            if(!existing[i] || existing[i].getAttribute('data-g') !== kids[i].g){ ok = false; break; }
+          }
+          if(ok){
+            syncAreaHighlight();
+            return;
+          }
+        }
+
         elAreas.replaceChildren();
+        elAreas.setAttribute('data-parent', String(node.g));
         kids.forEach(function(ch){
           var b=document.createElement('button');
           b.type='button';
           b.className='larea'+(view.cate===ch.g?' on':'');
           b.textContent=ch.name;
+          b.setAttribute('data-g', ch.g);
           b.addEventListener('click', function(){
-            view.kind='live'; view.cate=ch.g; view.subFilter='';
-            updateAreas(); load(true);
+            if(view.cate === ch.g && view.kind === 'live') return;
+            view.kind='live';
+            view.cate=ch.g;
+            // 二级挂在当前一级下：固定本一级，禁止 resolve 跨级
+            view.parentKey = node.g;
+            view.subFilter='';
+            // 只改高亮，不销毁二级栏 / 不重绘一级栏
+            syncAreaHighlight();
+            // 仅刷新列表骨架，分类菜单与页面顶栏保持不动
+            load(true, { keepChrome: true });
           });
           elAreas.appendChild(b);
         });
+        // 兜底：二级也只允许一个 on
+        var aons = elAreas.querySelectorAll('.larea.on');
+        if(aons.length > 1){
+          for(var ai=1;ai<aons.length;ai++) aons[ai].className = 'larea';
+        }
         elAreas.className='liveareas on';
         try{ enableHScroll(elAreas); }catch(e){}
         return;
       }
+      // 一级无子分区：隐藏二级条
+      elAreas.className='liveareas';
+      elAreas.replaceChildren();
+      elAreas.removeAttribute('data-parent');
+      return;
     }
-    // 回退：按当前列表房间分类名本地筛选
+    // 回退：本地筛选（严格单选）
     var seen={}, order=[], c;
     for(i=0;i<view.items.length;i++){ c=view.items[i].cate; if(c && !seen[c]){ seen[c]=1; order.push(c); } }
     if(order.length<2){ elAreas.className='liveareas'; elAreas.replaceChildren(); return; }
     order.sort();
     elAreas.replaceChildren();
-    var all=document.createElement('button'); all.type='button'; all.className='larea'+(view.subFilter?'':' on'); all.textContent='全部'; all.addEventListener('click',function(){ setSubFilter(''); }); elAreas.appendChild(all);
-    order.forEach(function(name){ var b=document.createElement('button'); b.type='button'; b.className='larea'+(view.subFilter===name?' on':''); b.textContent=name; b.addEventListener('click',function(){ setSubFilter(name); }); elAreas.appendChild(b); });
+    var all=document.createElement('button'); all.type='button'; all.className='larea'+(!view.subFilter?' on':''); all.textContent='全部'; all.setAttribute('data-sub',''); all.addEventListener('click',function(){ setSubFilter(''); }); elAreas.appendChild(all);
+    order.forEach(function(name){
+      var b=document.createElement('button'); b.type='button';
+      b.className='larea'+(view.subFilter===name?' on':'');
+      b.textContent=name; b.setAttribute('data-sub', name);
+      b.addEventListener('click',function(){ setSubFilter(name); });
+      elAreas.appendChild(b);
+    });
     elAreas.className='liveareas on'; try{enableHScroll(elAreas);}catch(e){}
   }
-  function setSubFilter(name){ view.subFilter=name; if(elAreas){ Array.prototype.forEach.call(elAreas.querySelectorAll('.larea'),function(b){ b.className='larea'+(b.textContent===(name||'全部')?' on':''); }); } applySubFilter(); }
+  function setSubFilter(name){
+    view.subFilter = name || '';
+    if(elAreas){
+      Array.prototype.forEach.call(elAreas.querySelectorAll('.larea'), function(b){
+        var sub = b.getAttribute('data-sub');
+        var isOn = (view.subFilter === '' && (sub === '' || sub === null))
+          || (view.subFilter !== '' && sub === view.subFilter);
+        b.className = 'larea' + (isOn ? ' on' : '');
+      });
+    }
+    applySubFilter();
+  }
   function applySubFilter(){ Array.prototype.forEach.call(elList.children,function(w){ var c=w.getAttribute('data-cate')||''; w.style.display=(!view.subFilter||c===view.subFilter)?'':'none'; }); }
 
   /** 从平台接口同步全部分区（失败则保留内置兜底） */
@@ -3107,9 +3266,42 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
     return A.live(view.cate, view.page);
   }
 
-  async function load(reset){
+  /** 仅更新二级栏高亮，不销毁重建（避免点击二级时菜单跟着列表一起闪） */
+  function syncAreaHighlight(){
+    if(!elAreas) return;
+    Array.prototype.forEach.call(elAreas.querySelectorAll('.larea'), function(el){
+      var g = el.getAttribute('data-g');
+      var sub = el.getAttribute('data-sub');
+      var on = false;
+      if(g != null) on = (g === view.cate);
+      else {
+        on = (view.subFilter === '' && (sub === '' || sub === null))
+          || (view.subFilter !== '' && sub === view.subFilter);
+      }
+      el.className = 'larea' + (on ? ' on' : '');
+    });
+  }
+
+  /**
+   * @param {boolean} reset 是否从第一页重载
+   * @param {{keepChrome?:boolean}} opts keepChrome=true：保留一级/二级菜单不重建（二级切换用）
+   */
+  async function load(reset, opts){
+    opts = opts || {};
+    var keepChrome = !!opts.keepChrome;
     var seq=++view.seq; view.loading=true;
-    if(reset){ view.page=1; view.items=[]; view.more=true; view.subFilter=''; lazyList=[]; if(lazyIO){lazyIO.disconnect();lazyIO=null;} elList.replaceChildren(); elMore.replaceChildren(); if(elAreas){elAreas.className='liveareas';elAreas.replaceChildren();} loadingState(); window.scrollTo(0,0); }
+    if(reset){
+      view.page=1; view.items=[]; view.more=true; view.subFilter='';
+      lazyList=[]; if(lazyIO){lazyIO.disconnect();lazyIO=null;}
+      elList.replaceChildren(); elMore.replaceChildren();
+      // 二级切换：不动分类栏；一级/搜索切换才清空二级栏
+      if(!keepChrome && elAreas){
+        elAreas.className='liveareas';
+        elAreas.replaceChildren();
+      }
+      loadingState();
+      if(!keepChrome) window.scrollTo(0,0);
+    }
     try{
       var res=await Promise.race([ fetchPage(), new Promise(function(_,rej){ setTimeout(function(){rej(new Error('请求超时'));},20000); }) ]);
       if(seq!==view.seq) return;
@@ -3118,13 +3310,17 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
       if(reset) elList.replaceChildren();
       if(!items.length && !view.items.length){ showState(moeEmpty('这里没有直播','换个分区或关键词试试')); }
       else { clearState(); view.items=view.items.concat(items); renderInto(elList,items); }
-      updateAreas(); applySubFilter();
+      if(keepChrome) syncAreaHighlight();
+      else updateAreas();
+      applySubFilter();
       renderMore();
     }catch(e){
       if(seq!==view.seq) return;
       netDot(false); endLoading();
       if(view.items.length) toast('加载失败：'+e.message);
       else { elList.replaceChildren(); showState('<strong>没能连上'+(A.word||'')+'</strong><div>'+String(e.message).replace(/</g,'&lt;')+'</div><div style="margin-top:8px">需要代理时请在 App 里配置。</div>'); }
+      // 失败时仍保持分类栏（keepChrome）或按需重建
+      if(keepChrome) syncAreaHighlight();
     }finally{ if(seq===view.seq) view.loading=false; }
   }
   function renderMore(){ elMore.replaceChildren(); if(!view.more)return; var b=document.createElement('button'); b.className='state act'; b.textContent='加载更多'; b.addEventListener('click',function(){ if(!view.loading){ view.page++; load(false); } }); elMore.appendChild(b); }
@@ -3201,51 +3397,100 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
 
   function scrollTabIntoView(){ var on=elTabs.querySelector('.tab.on'); if(!on)return; var left=on.offsetLeft-(elTabs.clientWidth-on.offsetWidth)/2; if(elTabs.scrollTo) elTabs.scrollTo({left:left,behavior:'smooth'}); else elTabs.scrollLeft=left; }
   function clearSearchBox(){ setVal('q',''); if(typeof syncClear==='function') syncClear(); closeSug(); }
-  function renderTabs(){
-    elTabs.replaceChildren();
-    // 有分区树时：一级只显示大类，二级在 liveareas
-    var tabs;
-    if(A.cateTree && A.cateTree.length){
-      tabs = A.cateTree.map(function(n){
-        return { g:n.g, name:n.name, children:n.children||[] };
-      });
-    } else {
-      tabs = A.cate || [];
+
+  /** 一级分区列表（有动态树用树，否则用扁平 cate） */
+  function getTopTabs(){
+    if(A.cateTree && A.cateTree.length) return A.cateTree;
+    return A.cate || [];
+  }
+
+  /**
+   * 唯一确定当前应高亮的一级 tab g。
+   * 严格只匹配一级节点，避免子分区 g 误命中另一个一级导致双选/跳级。
+   */
+  function activeTabG(tabs){
+    if(view.kind !== 'live' || !tabs || !tabs.length) return null;
+    var i, j, kids, pk = view.parentKey;
+    // 1) parentKey 精确命中一级
+    if(pk !== undefined && pk !== null){
+      for(i=0;i<tabs.length;i++){ if(tabs[i].g === pk) return tabs[i].g; }
     }
-    tabs.forEach(function(t){
-      var b=document.createElement('button');
-      b.type='button';
-      var on = false;
-      if(view.kind==='live'){
-        if(A.cateTree){
-          on = (view.parentKey === t.g) || (!view.parentKey && (t.g===''||t.g==='0_0'||t.g==='rec'||t.g==='0-0') && (view.cate===t.g || view.cate===''||view.cate==='0_0'||view.cate==='rec'||view.cate==='0-0'));
-          if(!on && t.children && t.children.length){
-            for(var i=0;i<t.children.length;i++){ if(t.children[i].g===view.cate){ on=true; break; } }
-          }
-        } else {
-          on = view.cate===t.g;
-        }
-      }
-      b.className='tab'+(on?' on':'');
-      b.textContent=t.name;
-      b.addEventListener('click',function(){
-        clearSearchBox();
-        view.kind='live';
-        view.subFilter='';
-        if(A.cateTree && t.children && t.children.length){
-          view.parentKey = t.g;
-          view.cate = t.children[0].g;
-        } else {
-          view.parentKey = t.g;
-          view.cate = t.g;
-        }
-        renderTabs();
-        scrollTabIntoView();
-        updateAreas();
-        load(true);
+    // 2) view.cate 本身就是一级
+    for(i=0;i<tabs.length;i++){ if(tabs[i].g === view.cate) return tabs[i].g; }
+    // 3) view.cate 落在某个一级的 children 里
+    for(i=0;i<tabs.length;i++){
+      kids = tabs[i].children || [];
+      for(j=0;j<kids.length;j++){ if(kids[j].g === view.cate) return tabs[i].g; }
+    }
+    return tabs[0].g;
+  }
+
+  /** 切换锁：防止点击/滑动并发导致一次跳多级或两个一级同时高亮 */
+  var cateSwitchLock = false;
+  var cateSwitchUntil = 0;
+
+  /**
+   * 统一切换到指定一级索引（点击与滑动共用）。
+   * 保证：同一时刻只有一个一级 on；parentKey/cate 与高亮一致；冷却期内不重复触发。
+   */
+  function selectPrimaryByIndex(idx, opts){
+    opts = opts || {};
+    var tabs = getTopTabs();
+    if(!tabs.length) return;
+    if(idx < 0) idx = 0;
+    if(idx >= tabs.length) idx = tabs.length - 1;
+    var now = Date.now();
+    if(!opts.force){
+      if(cateSwitchLock || now < cateSwitchUntil) return;
+      // 已在该一级且非搜索态：不重复加载
+      if(view.kind === 'live' && view.parentKey === tabs[idx].g && !getVal('q')) return;
+    }
+    cateSwitchLock = true;
+    cateSwitchUntil = now + 320;
+    try{
+      clearSearchBox();
+      view.kind = 'live';
+      view.subFilter = '';
+      var t = tabs[idx];
+      view.parentKey = t.g;
+      var kids = t.children || [];
+      view.cate = kids.length ? kids[0].g : t.g;
+      renderTabs();
+      scrollTabIntoView();
+      updateAreas();
+      load(true);
+    } finally {
+      setTimeout(function(){ cateSwitchLock = false; }, 300);
+    }
+  }
+
+  function renderTabs(){
+    var tabs = getTopTabs();
+    var activeG = activeTabG(tabs);
+    // 搜索态不高亮任何一级；直播态强制 parentKey 与唯一高亮一致
+    if(view.kind === 'live' && activeG != null) view.parentKey = activeG;
+    else if(view.kind !== 'live') activeG = null;
+
+    elTabs.replaceChildren();
+    tabs.forEach(function(t, idx){
+      var b = document.createElement('button');
+      b.type = 'button';
+      // 严格单选：只有 activeG 那一个带 on
+      b.className = 'tab' + ((activeG != null && t.g === activeG) ? ' on' : '');
+      b.textContent = t.name;
+      b.setAttribute('data-g', t.g);
+      b.setAttribute('data-idx', String(idx));
+      b.addEventListener('click', function(){
+        selectPrimaryByIndex(idx, {});
+        try{ b.blur(); }catch(e){}
       });
       elTabs.appendChild(b);
     });
+    // 兜底：DOM 上再扫一遍，确保不会出现两个 .tab.on
+    var ons = elTabs.querySelectorAll('.tab.on');
+    if(ons.length > 1){
+      for(var i=1;i<ons.length;i++) ons[i].className = 'tab';
+    }
     scrollTabIntoView();
   }
 
@@ -3329,8 +3574,30 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   function setPull(y){ pullY=y; elWrap.style.transform=y?('translateY('+y+'px)'):''; elPullSpin.style.opacity=String(Math.min(y/PULL_FIRE,1)); elPullSpin.style.transform='translateY('+(y*0.6-40)+'px) rotate('+(y*3)+'deg)'; elPullSpin.className='pull-spin'+(y>=PULL_FIRE?' ready':''); }
   function endPull(){ elWrap.className='wrap snap'; elWrap.style.transform=''; elPullSpin.className='pull-spin'; elPullSpin.style.opacity='0'; elPullSpin.style.transform='translateY(-40px)'; pullY=0; setTimeout(function(){elWrap.className='wrap';},460); }
   function releasePull(refresh){ elWrap.className='wrap snap'; if(!refresh){endPull();return;} elWrap.style.transform='translateY(56px)'; elPullSpin.className='pull-spin spin'; elPullSpin.style.opacity='1'; elPullSpin.style.transform='translateY(-6px)'; load(true).then(endPull,endPull); }
-  function cateIndex(){ var i; for(i=0;i<A.cate.length;i++) if(A.cate[i].g===view.cate)return i; return -1; }
-  function gotoCate(dir){ var idx=cateIndex(); if(idx===-1)idx=0; var n=idx+dir; if(n<0||n>=A.cate.length)return; clearSearchBox(); view.kind='live'; view.cate=A.cate[n].g; renderTabs(); scrollTabIntoView(); load(true); }
+  function cateIndex(){
+    var tabs = getTopTabs();
+    var i, j, kids, pk = view.parentKey;
+    // 只按一级 parentKey 定位，避免子分区 id 误匹配导致滑动跳级
+    if(pk !== undefined && pk !== null){
+      for(i=0;i<tabs.length;i++){ if(tabs[i].g === pk) return i; }
+    }
+    for(i=0;i<tabs.length;i++){
+      if(tabs[i].g === view.cate) return i;
+      kids = tabs[i].children || [];
+      for(j=0;j<kids.length;j++){ if(kids[j].g === view.cate) return i; }
+    }
+    return 0;
+  }
+  function gotoCate(dir){
+    // 冷却/锁定中直接忽略，防止一次手势连跳多级
+    if(cateSwitchLock || Date.now() < cateSwitchUntil) return;
+    var tabs = getTopTabs();
+    if(!tabs.length) return;
+    var idx = cateIndex();
+    var n = idx + dir;
+    if(n < 0 || n >= tabs.length) return;
+    selectPrimaryByIndex(n, {});
+  }
   
   // 分类栏 / 二级栏：阻止页面手势抢走横向滑动
   function enableHScroll(el){
@@ -3347,11 +3614,65 @@ html.no-css-functions .wrap{ padding-bottom:48px; }
   }
 
   function initGestures(){
-    var sx=0,sy=0,ax='',touching=false,swipeX=0;
-    document.addEventListener('touchstart',function(e){ if(openName||e.touches.length>1){ax='no';return;} if(hasBodyClass('searching')){ax='no';return;} var t=e.target; if(t&&t.closest&&t.closest('.tabs,.liveareas,.tab,.larea,.sug,.sheet,.switcher')){ax='no';return;} sx=e.touches[0].clientX; sy=e.touches[0].clientY; ax=''; touching=true; swipeX=0; elWrap.className='wrap'; },{passive:true});
-    document.addEventListener('touchmove',function(e){ if(!touching||ax==='no')return; var dx=e.touches[0].clientX-sx, dy=e.touches[0].clientY-sy; if(!ax){ var adx=Math.abs(dx),ady=Math.abs(dy); if(adx<6&&ady<6)return; if(adx>ady*1.05){ ax='x'; } else if(dy>0&&window.pageYOffset<=0&&ady>adx*1.5){ ax='y'; } else if(ady>adx*1.5){ ax='no'; return; } else return; } if(ax==='x'){ var idx=cateIndex(); var edge=(dx>0&&idx<=0)||(dx<0&&idx>=A.cate.length-1); swipeX=edge?dx*0.28:dx*0.85; elWrap.style.transform='translateX('+swipeX+'px)'; elWrap.style.opacity=String(1-Math.min(Math.abs(swipeX)/400,0.35)); if(e.cancelable)e.preventDefault(); return; } if(ax==='y'){ if(dy<=0||window.pageYOffset>0){ if(pullY)setPull(0); ax='no'; return; } setPull(PULL_MAX*(1-Math.exp(-dy/(PULL_MAX*1.1)))); if(e.cancelable)e.preventDefault(); } },{passive:false});
-    function done(){ if(!touching)return; touching=false; if(ax==='x'){ elWrap.className='wrap snap'; elWrap.style.transform=''; elWrap.style.opacity=''; setTimeout(function(){elWrap.className='wrap';},420); if(Math.abs(swipeX)>=56) gotoCate(swipeX<0?1:-1); } else if(ax==='y'){ releasePull(pullY>=PULL_FIRE); } ax=''; }
-    document.addEventListener('touchend',done); document.addEventListener('touchcancel',done);
+    var sx=0,sy=0,ax='',touching=false,swipeX=0, swipeFired=false;
+    document.addEventListener('touchstart',function(e){
+      if(openName||e.touches.length>1){ax='no';return;}
+      if(hasBodyClass('searching')){ax='no';return;}
+      // 切换冷却中禁止新的横向分类滑动，避免连跳
+      if(cateSwitchLock || Date.now() < cateSwitchUntil){ax='no';return;}
+      var t=e.target;
+      if(t&&t.closest&&t.closest('.tabs,.liveareas,.tab,.larea,.sug,.sheet,.switcher')){ax='no';return;}
+      sx=e.touches[0].clientX; sy=e.touches[0].clientY;
+      ax=''; touching=true; swipeX=0; swipeFired=false;
+      elWrap.className='wrap';
+    },{passive:true});
+    document.addEventListener('touchmove',function(e){
+      if(!touching||ax==='no')return;
+      var dx=e.touches[0].clientX-sx, dy=e.touches[0].clientY-sy;
+      if(!ax){
+        var adx=Math.abs(dx),ady=Math.abs(dy);
+        if(adx<6&&ady<6)return;
+        if(adx>ady*1.05){ ax='x'; }
+        else if(dy>0&&window.pageYOffset<=0&&ady>adx*1.5){ ax='y'; }
+        else if(ady>adx*1.5){ ax='no'; return; }
+        else return;
+      }
+      if(ax==='x'){
+        var idx=cateIndex();
+        var _tabsLen=getTopTabs().length;
+        var edge=(dx>0&&idx<=0)||(dx<0&&idx>=_tabsLen-1);
+        swipeX=edge?dx*0.28:dx*0.85;
+        elWrap.style.transform='translateX('+swipeX+'px)';
+        elWrap.style.opacity=String(1-Math.min(Math.abs(swipeX)/400,0.35));
+        if(e.cancelable)e.preventDefault();
+        return;
+      }
+      if(ax==='y'){
+        if(dy<=0||window.pageYOffset>0){ if(pullY)setPull(0); ax='no'; return; }
+        setPull(PULL_MAX*(1-Math.exp(-dy/(PULL_MAX*1.1))));
+        if(e.cancelable)e.preventDefault();
+      }
+    },{passive:false});
+    function done(){
+      if(!touching)return;
+      touching=false;
+      if(ax==='x'){
+        elWrap.className='wrap snap';
+        elWrap.style.transform='';
+        elWrap.style.opacity='';
+        setTimeout(function(){elWrap.className='wrap';},420);
+        // 同一手势只触发一次切换，阈值略提高减少误触连跳
+        if(!swipeFired && Math.abs(swipeX)>=64){
+          swipeFired=true;
+          gotoCate(swipeX<0?1:-1);
+        }
+      } else if(ax==='y'){
+        releasePull(pullY>=PULL_FIRE);
+      }
+      ax='';
+    }
+    document.addEventListener('touchend',done);
+    document.addEventListener('touchcancel',done);
   }
 
   function clampSafeTop(){ try{ var cs=getComputedStyle(document.documentElement); var mode=(cs.getPropertyValue('--fm-chrome-mode')||'').trim(); var raw=parseFloat(cs.getPropertyValue('--fm-safe-top'))||0; var sb=parseFloat(cs.getPropertyValue('--fm-status-bar-height'))||0; var use; if(mode==='normal'||mode==='tv-normal'){ use=0; } else if(sb>0&&sb<=48){ use=sb; } else if(raw<=48){ use=raw; } else { use=28; } document.documentElement.style.setProperty('--safe-top', use+'px'); }catch(e){} }
